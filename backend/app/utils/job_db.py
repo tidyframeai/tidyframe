@@ -185,29 +185,38 @@ def update_job_status(
                                         )
 
                                         logger.info(
-                                            f"Immediately reported {rows_parsed} usage to Stripe for customer {user.stripe_customer_id}"
+                                            "stripe_usage_reported_immediately",
+                                            customer_id=user.stripe_customer_id,
+                                            quantity=rows_parsed,
+                                            meter_event_id=meter_event.identifier,
                                         )
 
                                     except Exception as e:
                                         logger.error(
-                                            f"Failed to report usage to Stripe immediately: {e}"
-                                        )
-                                        # Fallback to queue if immediate reporting fails
-                                        from app.services.stripe_service import (
-                                            get_usage_service,
+                                            "stripe_usage_report_failed",
+                                            customer_id=user.stripe_customer_id,
+                                            quantity=rows_parsed,
+                                            error=str(e),
                                         )
 
-                                        usage_service = get_usage_service()
-                                        usage_service.usage_queue.append(
-                                            {
-                                                "customer_id": user.stripe_customer_id,
-                                                "quantity": rows_parsed,
-                                                "timestamp": current_time,
-                                                "user_id": str(user.id),
-                                            }
+                                        # CRITICAL: Queue for retry instead of dropping
+                                        from app.models.stripe_report import FailedStripeReport
+
+                                        failed_report = FailedStripeReport(
+                                            user_id=user.id,
+                                            customer_id=user.stripe_customer_id,
+                                            quantity=rows_parsed,
+                                            timestamp=current_time,
                                         )
+                                        # Set initial retry time (5 minutes from now)
+                                        failed_report.increment_retry(str(e))
+                                        db.add(failed_report)
+
                                         logger.info(
-                                            f"Fallback: Queued {rows_parsed} usage for customer {user.stripe_customer_id}"
+                                            "stripe_usage_queued_for_retry",
+                                            customer_id=user.stripe_customer_id,
+                                            quantity=rows_parsed,
+                                            next_retry=failed_report.next_retry_at.isoformat(),
                                         )
 
                                 # Create ParseLog entry for tracking with correct overage flag

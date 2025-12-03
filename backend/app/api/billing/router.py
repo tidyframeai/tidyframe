@@ -695,6 +695,20 @@ class OverageEstimateResponse(BaseModel):
     warning_message: Optional[str] = None
 
 
+class InvoicePreviewResponse(BaseModel):
+    """Preview of upcoming invoice - CRITICAL for user transparency"""
+
+    base_subscription_cost: float  # In dollars
+    current_overage_amount: int  # Number of parses over limit
+    current_overage_cost: float  # In dollars
+    estimated_total: float  # In dollars
+    days_until_invoice: int
+    billing_period_end: str  # ISO format
+    has_overage: bool
+    plan_name: str
+    billing_period: str  # "monthly" or "yearly"
+
+
 @router.post("/estimate-overage", response_model=OverageEstimateResponse)
 async def estimate_overage(
     estimate_data: OverageEstimateRequest,
@@ -795,6 +809,108 @@ async def estimate_overage(
         total_cost_this_period=total_cost,
         warning_message=warning_message,
     )
+
+
+@router.get("/invoice-preview", response_model=InvoicePreviewResponse)
+async def get_invoice_preview(current_user: User = Depends(require_auth)):
+    """
+    Preview upcoming invoice with current overage charges
+    CRITICAL for transparency - users see what they'll be billed before period ends
+    """
+
+    # Free users and non-subscribers don't have invoices
+    if not current_user.stripe_subscription_id or current_user.plan == PlanType.FREE:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active subscription found",
+        )
+
+    # Admin users bypass billing
+    if current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin users do not have invoices",
+        )
+
+    try:
+        stripe_service = StripeService()
+
+        # Get subscription details for base cost and billing period
+        subscription = await stripe_service.get_subscription(
+            current_user.stripe_subscription_id
+        )
+
+        # Extract base subscription cost
+        base_cost = 0.0
+        billing_period = "monthly"
+        if subscription.get("items") and subscription["items"]["data"]:
+            price = subscription["items"]["data"][0].get("price", {})
+            base_cost = price.get("unit_amount", 0) / 100.0  # Convert cents to dollars
+            billing_period = price.get("recurring", {}).get("interval", "month")
+            if billing_period == "month":
+                billing_period = "monthly"
+            elif billing_period == "year":
+                billing_period = "yearly"
+
+        # Calculate current overage
+        current_usage = current_user.parses_this_month
+        monthly_limit = current_user.monthly_limit
+        overage_amount = max(0, current_usage - monthly_limit)
+        overage_cost = overage_amount * settings.OVERAGE_PRICE_PER_UNIT
+
+        # Enterprise users don't have overage (unlimited parsing)
+        if current_user.plan == PlanType.ENTERPRISE:
+            overage_amount = 0
+            overage_cost = 0.0
+
+        estimated_total = base_cost + overage_cost
+
+        # Calculate days until next invoice
+        period_end = subscription.get("current_period_end")
+        if period_end:
+            period_end_datetime = datetime.fromtimestamp(period_end, tz=timezone.utc)
+            days_until = (period_end_datetime - datetime.now(timezone.utc)).days
+            period_end_str = period_end_datetime.isoformat()
+        else:
+            # Fallback to month_reset_date
+            period_end_datetime = current_user.month_reset_date
+            days_until = (period_end_datetime - datetime.now(timezone.utc)).days
+            period_end_str = period_end_datetime.isoformat()
+
+        logger.info(
+            "invoice_preview_generated",
+            user_id=current_user.id,
+            base_cost=base_cost,
+            overage_amount=overage_amount,
+            overage_cost=overage_cost,
+            estimated_total=estimated_total,
+            days_until=days_until,
+        )
+
+        return InvoicePreviewResponse(
+            base_subscription_cost=base_cost,
+            current_overage_amount=overage_amount,
+            current_overage_cost=overage_cost,
+            estimated_total=estimated_total,
+            days_until_invoice=max(0, days_until),  # Never negative
+            billing_period_end=period_end_str,
+            has_overage=overage_amount > 0,
+            plan_name=current_user.plan.value,
+            billing_period=billing_period,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "invoice_preview_failed",
+            user_id=current_user.id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate invoice preview",
+        )
 
 
 @router.post("/stripe/webhook")
@@ -1161,7 +1277,23 @@ async def handle_payment_succeeded(invoice_data: dict, db: AsyncSession) -> dict
         # Reset monthly usage for new billing period
         from datetime import datetime, timezone
 
+        current_time = datetime.now(timezone.utc)
+
+        # Check if already reset recently by webhook (prevent duplicate reset)
+        if user.last_reset_at and user.last_reset_source == "webhook":
+            time_since_reset = (current_time - user.last_reset_at).total_seconds()
+            if time_since_reset < 300:  # Less than 5 minutes ago
+                logger.info(
+                    "payment_webhook_duplicate_prevented",
+                    user_id=user.id,
+                    last_reset_at=user.last_reset_at.isoformat(),
+                    seconds_since_reset=time_since_reset,
+                )
+                return {"processed": True, "action": "duplicate_prevented"}
+
         user.parses_this_month = 0
+        user.last_reset_at = current_time
+        user.last_reset_source = "webhook"
 
         # Use Stripe's actual billing period end (handles monthly/yearly correctly)
         # Extract period_end from invoice data - supports multiple Stripe webhook formats

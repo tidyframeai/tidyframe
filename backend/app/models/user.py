@@ -54,6 +54,10 @@ class User(Base):
     parses_this_month = Column(Integer, default=0, nullable=False)
     month_reset_date = Column(DateTime(timezone=True), server_default=func.now())
 
+    # Billing reset tracking (prevents webhook/celery race conditions)
+    last_reset_at = Column(DateTime(timezone=True), nullable=True)
+    last_reset_source = Column(String(20), nullable=True)  # "webhook" or "celery"
+
     # Custom limits (admin-configurable)
     custom_monthly_limit = Column(Integer, nullable=True)  # Override default plan limit
 
@@ -104,6 +108,7 @@ class User(Base):
     # Relationships (defined here to avoid circular imports)
     jobs = relationship("ProcessingJob", back_populates="user", lazy="dynamic")
     parse_logs = relationship("ParseLog", back_populates="user", lazy="dynamic")
+    failed_stripe_reports = relationship("FailedStripeReport", back_populates="user", lazy="dynamic")
 
     def __repr__(self):
         return f"<User {self.email}>"

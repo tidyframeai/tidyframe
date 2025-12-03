@@ -8,7 +8,8 @@ import {
   CheckoutSessionResponse,
   CustomerPortalResponse,
   PricingPlan,
-  BillingConfig
+  BillingConfig,
+  InvoicePreview
 } from '@/types/billing';
 
 class BillingService {
@@ -188,6 +189,17 @@ class BillingService {
     warning_message?: string;
   }> {
     return await apiService.post('/api/billing/estimate-overage', { row_count: rowCount });
+  }
+
+  // Get invoice preview for upcoming billing cycle
+  async getInvoicePreview(): Promise<InvoicePreview | null> {
+    try {
+      return await apiService.get<InvoicePreview>('/api/billing/invoice-preview');
+    } catch (error) {
+      // Return null if no subscription exists or other error
+      console.error('Failed to fetch invoice preview:', error);
+      return null;
+    }
   }
 }
 

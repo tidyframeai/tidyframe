@@ -193,15 +193,19 @@ def cleanup_failed_jobs() -> Dict[str, int]:
 @celery_app.task
 def reset_monthly_usage() -> Dict[str, int]:
     """
-    Reset monthly usage counters for users whose billing cycle has reset
-    Runs daily to check for users who need their monthly counters reset
+    Fallback reset for monthly usage counters (webhook is primary)
+    Runs daily to catch any missed webhook resets
 
-    For STANDARD users with Stripe subscriptions: Uses Stripe's actual period_end
-    For FREE users without subscriptions: Uses 30-day approximation
+    Webhook is PRIMARY: invoice.payment_succeeded handles resets for STANDARD users
+    Celery is FALLBACK: Only resets if webhook hasn't already done it
+
+    This prevents:
+    - Double resets (losing valid usage data)
+    - Missed resets (if webhook fails)
     """
-    logger.info("reset_monthly_usage_started")
+    logger.info("reset_monthly_usage_started", mode="fallback_safety_net")
 
-    result = {"users_reset": 0, "errors": 0}
+    result = {"users_reset": 0, "webhook_already_reset": 0, "errors": 0}
 
     try:
         with SessionLocal() as db:
@@ -216,8 +220,53 @@ def reset_monthly_usage() -> Dict[str, int]:
 
             for user in users_to_reset:
                 try:
+                    # CRITICAL: Check if webhook already reset this period
+                    # If last_reset_at is within 48 hours of month_reset_date, webhook handled it
+                    if user.last_reset_at and user.month_reset_date:
+                        time_diff = abs((user.last_reset_at - user.month_reset_date).total_seconds())
+
+                        # If reset happened within 48 hours of reset date, webhook handled it
+                        if time_diff < 172800:  # 48 hours in seconds
+                            logger.info(
+                                "celery_reset_skipped_webhook_handled",
+                                user_id=str(user.id),
+                                email=user.email,
+                                last_reset_source=user.last_reset_source,
+                                last_reset_at=user.last_reset_at.isoformat(),
+                                month_reset_date=user.month_reset_date.isoformat(),
+                            )
+                            result["webhook_already_reset"] += 1
+                            # Still update next reset date for future cycles
+                            if user.stripe_subscription_id:
+                                try:
+                                    from app.services.stripe_service import StripeService
+                                    stripe_service = StripeService()
+                                    subscription = stripe_service.stripe.Subscription.retrieve(
+                                        user.stripe_subscription_id
+                                    )
+                                    user.month_reset_date = datetime.fromtimestamp(
+                                        subscription["current_period_end"], tz=timezone.utc
+                                    )
+                                except Exception:
+                                    user.month_reset_date = current_time + timedelta(days=30)
+                            else:
+                                user.month_reset_date = current_time + timedelta(days=30)
+                            continue
+
+                    # Webhook didn't handle it - Celery fallback kicks in
+                    logger.warning(
+                        "celery_fallback_reset_triggered",
+                        user_id=str(user.id),
+                        email=user.email,
+                        last_reset_at=user.last_reset_at.isoformat() if user.last_reset_at else None,
+                        last_reset_source=user.last_reset_source,
+                        message="Webhook failed to reset - Celery fallback protecting revenue",
+                    )
+
                     # Reset parse count
                     user.parses_this_month = 0
+                    user.last_reset_at = current_time
+                    user.last_reset_source = "celery"
 
                     # Determine next reset date based on subscription status
                     if user.stripe_subscription_id:

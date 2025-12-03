@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { isInPaymentGracePeriod, clearPaymentGracePeriod } from '@/utils/gracePeriodManager';
 import { processingService } from '@/services/processingService';
+import { billingService } from '@/services/billingService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +16,9 @@ import {
   PartyPopper,
   ArrowRight,
   RefreshCw,
-  Loader2
+  Loader2,
+  DollarSign,
+  Calendar
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -27,6 +30,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ProcessingJob } from '@/types/processing';
+import { InvoicePreview } from '@/types/billing';
 import { StatusIndicator } from '@/components/shared/StatusIndicator';
 import { ProgressBar } from '@/components/shared/ProgressBar';
 import { formatDate } from '@/utils/format';
@@ -42,6 +46,7 @@ export default function DashboardHome() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [inGracePeriod, setInGracePeriod] = useState(isInPaymentGracePeriod());
+  const [invoicePreview, setInvoicePreview] = useState<InvoicePreview | null>(null);
 
   // Show welcome modal for users who just completed payment (grace period active)
   // Also poll subscription status during grace period and clear it when active
@@ -89,25 +94,31 @@ export default function DashboardHome() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const [jobs] = await Promise.all([
+        const [jobs, preview] = await Promise.all([
           processingService.getJobs().catch(() => {
             logger.debug('Jobs endpoint not available yet, using empty array');
             return [];
-          })
+          }),
+          // Fetch invoice preview for STANDARD users with active subscriptions
+          hasActiveSubscription && user?.plan === 'STANDARD'
+            ? billingService.getInvoicePreview().catch(() => null)
+            : Promise.resolve(null)
         ]);
 
-        setRecentJobs(Array.isArray(jobs) ? jobs.slice(0, UI.MAX_RECENT_JOBS) : []); // Show only recent jobs
+        setRecentJobs(Array.isArray(jobs) ? jobs.slice(0, UI.MAX_RECENT_JOBS) : []);
+        setInvoicePreview(preview);
       } catch (error) {
         logger.error('Error fetching dashboard data:', error);
         // Set fallback data instead of showing errors
         setRecentJobs([]);
+        setInvoicePreview(null);
       } finally {
         setLoading(false);
       }
     };
 
     fetchDashboardData();
-  }, [user]);
+  }, [user, hasActiveSubscription]);
 
   const handleRefreshSubscription = async () => {
     setRefreshing(true);
@@ -276,7 +287,7 @@ export default function DashboardHome() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className={`grid gap-4 md:grid-cols-2 ${invoicePreview ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
         <Card className="group relative overflow-hidden hover:shadow-xl hover:shadow-primary/10 hover:border-primary/30 transition-all duration-normal">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/10 opacity-0 group-hover:opacity-100 transition-opacity" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
@@ -333,6 +344,49 @@ export default function DashboardHome() {
             </p>
           </CardContent>
         </Card>
+
+        {/* Invoice Preview Card - Show for STANDARD users with overage */}
+        {invoicePreview && (
+          <Card className={`group relative overflow-hidden hover:shadow-xl transition-all duration-normal ${
+            invoicePreview.has_overage
+              ? 'hover:shadow-warning/10 hover:border-warning/30 border-warning/20'
+              : 'hover:shadow-foreground/10 hover:border-foreground/30'
+          }`}>
+            <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity ${
+              invoicePreview.has_overage
+                ? 'bg-gradient-to-br from-warning/5 via-transparent to-warning/10'
+                : 'bg-gradient-to-br from-foreground/5 via-transparent to-foreground/10'
+            }`} />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+              <CardTitle className="text-sm font-semibold text-foreground/80">Next Invoice</CardTitle>
+              <div className={`flex items-center justify-center h-12 w-12 rounded-xl shadow-lg group-hover:scale-110 transition-transform ${
+                invoicePreview.has_overage
+                  ? 'bg-gradient-to-br from-warning to-warning/80 shadow-warning/25'
+                  : 'bg-gradient-to-br from-foreground to-foreground/80 shadow-foreground/25'
+              }`}>
+                <DollarSign className={`h-6 w-6 ${invoicePreview.has_overage ? 'text-warning-foreground' : 'text-background'}`} />
+              </div>
+            </CardHeader>
+            <CardContent className="relative">
+              <div className={`text-4xl font-black tracking-tight bg-gradient-to-r bg-clip-text text-transparent ${
+                invoicePreview.has_overage
+                  ? 'from-warning to-warning/70'
+                  : 'from-foreground to-foreground/70'
+              }`}>
+                ${invoicePreview.estimated_total.toFixed(2)}
+              </div>
+              <p className="text-sm text-muted-foreground mt-1.5 flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                {invoicePreview.days_until_invoice} days remaining
+              </p>
+              {invoicePreview.has_overage && (
+                <p className="text-xs text-warning mt-1 font-medium">
+                  +${invoicePreview.current_overage_cost.toFixed(2)} overage
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
       </div>
 

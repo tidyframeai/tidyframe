@@ -68,6 +68,10 @@ celery_app.conf.update(
             "task": "app.workers.webhook_retry.retry_failed_webhooks",
             "schedule": 60.0 * 5.0,  # Every 5 minutes - retry failed webhooks
         },
+        "retry-failed-stripe-reports": {
+            "task": "app.workers.webhook_retry.retry_failed_stripe_reports",
+            "schedule": 60.0 * 5.0,  # Every 5 minutes - CRITICAL revenue protection
+        },
         "sync-subscription-status": {
             "task": "app.workers.webhook_retry.sync_subscription_status",
             "schedule": 60.0 * 60.0,  # Every hour - sync subscription status from Stripe

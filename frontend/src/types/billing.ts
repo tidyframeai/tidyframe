@@ -119,3 +119,15 @@ export interface BillingConfig {
   standard_yearly_features: string[];
   enterprise_features: string[];
 }
+
+export interface InvoicePreview {
+  base_subscription_cost: number; // In dollars
+  current_overage_amount: number; // Number of parses over limit
+  current_overage_cost: number; // In dollars
+  estimated_total: number; // In dollars
+  days_until_invoice: number;
+  billing_period_end: string; // ISO format
+  has_overage: boolean;
+  plan_name: string;
+  billing_period: string; // "monthly" or "yearly"
+}

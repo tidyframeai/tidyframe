@@ -4,6 +4,7 @@ from app.models.anonymous_usage import AnonymousUsage
 from app.models.api_key import APIKey
 from app.models.job import JobStatus, ProcessingJob
 from app.models.parse_log import ParseLog
+from app.models.stripe_report import FailedStripeReport
 from app.models.user import PlanType, User
 from app.models.webhook_event import WebhookEvent
 
@@ -16,4 +17,5 @@ __all__ = [
     "APIKey",
     "AnonymousUsage",
     "WebhookEvent",
+    "FailedStripeReport",
 ]
