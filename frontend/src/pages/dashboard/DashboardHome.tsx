@@ -216,10 +216,10 @@ export default function DashboardHome() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-secondary/20 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-primary/20 to-transparent rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
         <div className="relative flex flex-col gap-3">
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text">
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
             Welcome back{user?.fullName ? `, ${user.fullName.split(' ')[0]}` : ''}! 👋
           </h1>
-          <p className="text-foreground/70 text-lg max-w-xl">
+          <p className="text-foreground/80 text-lg max-w-xl">
             Here's what's happening with your name parsing projects today.
           </p>
         </div>
@@ -297,7 +297,7 @@ export default function DashboardHome() {
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-4xl font-black tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+            <div className="text-4xl font-black tracking-tight text-primary">
               {(user?.parsesThisMonth || 0).toLocaleString()}
             </div>
             <p className="text-sm text-muted-foreground mt-1.5">
@@ -315,7 +315,7 @@ export default function DashboardHome() {
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-4xl font-black tracking-tight bg-gradient-to-r from-secondary to-secondary/70 bg-clip-text text-transparent">
+            <div className="text-4xl font-black tracking-tight text-secondary">
               {recentJobs.filter(job => job.status === 'processing' || job.status === 'pending').length}
             </div>
             <p className="text-sm text-muted-foreground mt-1.5">
@@ -333,7 +333,7 @@ export default function DashboardHome() {
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-4xl font-black tracking-tight bg-gradient-to-r from-success to-success/70 bg-clip-text text-transparent">
+            <div className="text-4xl font-black tracking-tight text-success">
               {recentJobs.filter(job =>
                 job.status === 'completed' &&
                 new Date(job.completedAt!).toDateString() === new Date().toDateString()
@@ -368,10 +368,10 @@ export default function DashboardHome() {
               </div>
             </CardHeader>
             <CardContent className="relative">
-              <div className={`text-4xl font-black tracking-tight bg-gradient-to-r bg-clip-text text-transparent ${
+              <div className={`text-4xl font-black tracking-tight ${
                 invoicePreview.has_overage
-                  ? 'from-warning to-warning/70'
-                  : 'from-foreground to-foreground/70'
+                  ? 'text-warning'
+                  : 'text-foreground'
               }`}>
                 ${invoicePreview.estimated_total.toFixed(2)}
               </div>
@@ -402,13 +402,13 @@ export default function DashboardHome() {
                 </div>
                 <div>
                   <CardTitle className="text-lg font-bold">Monthly Usage</CardTitle>
-                  <CardDescription className="text-foreground/60">
+                  <CardDescription className="text-foreground/70">
                     Your parsing usage for this billing period
                   </CardDescription>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-3xl font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                <p className="text-3xl font-black text-primary">
                   {Math.round((user.parsesThisMonth / user.monthlyLimit) * 100)}%
                 </p>
                 <p className="text-xs text-muted-foreground font-medium">used</p>
