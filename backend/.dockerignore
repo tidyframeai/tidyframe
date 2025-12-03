@@ -1,0 +1,228 @@
+# ================================
+# Backend .dockerignore
+# Optimized for Production Security & Performance
+# ================================
+
+# ================================
+# Development & Build Artifacts
+# ================================
+.git/
+.gitignore
+.github/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ================================
+# Python & Virtual Environments
+# ================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+env/
+.env
+.venv
+ENV/
+env.bak/
+venv.bak/
+
+# ================================
+# Testing & Coverage
+# ================================
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+htmlcov/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ================================
+# Documentation & Jupyter
+# ================================
+.ipynb_checkpoints
+*.ipynb
+docs/_build/
+site/
+.sphinx/
+.readthedocs.yml
+
+# ================================
+# Environment & Configuration Files
+# ================================
+.env*
+!.env.example
+*.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ================================
+# Logs & Runtime Files
+# ================================
+logs/
+*.log
+log/
+*.pid
+*.seed
+*.pid.lock
+pids/
+
+# ================================
+# Database & Cache Files
+# ================================
+*.db
+*.sqlite
+*.sqlite3
+db.sqlite3
+db.sqlite3-journal
+instance/
+.webassets-cache
+*.rdb
+
+# ================================
+# File Processing & Uploads
+# ================================
+uploads/
+results/
+temp/
+tmp/
+test_data/
+sample_data/
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.zip
+*.tar.gz
+
+# ================================
+# IDE & Editor Specific
+# ================================
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+.spyderproject
+.spyproject
+.ropeproject
+
+# ================================
+# OS Specific Files
+# ================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ================================
+# Docker & Container Files
+# ================================
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+*.tar
+
+# ================================
+# CI/CD & Deployment
+# ================================
+.travis.yml
+.circleci/
+.github/
+Jenkinsfile
+.gitlab-ci.yml
+.azure-pipelines.yml
+
+# ================================
+# Security & Secrets
+# ================================
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+.secrets/
+credentials.json
+service-account.json
+
+# ================================
+# Backup & Archive Files
+# ================================
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+backup/
+backups/
+
+# ================================
+# Development Scripts & Tools
+# ================================
+scripts/dev/
+scripts/test/
+dev/
+development/
+debug/
+profile/
+
+# ================================
+# Performance & Profiling
+# ================================
+.prof
+*.prof
+profile_*
+*.pyprof
+
+# ================================
+# Frontend Build Artifacts (if any)
+# ================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ================================
+# Keep These Files (Explicit Include)
+# ================================
+!requirements.txt
+!app/
+!alembic/
+!alembic.ini
+!pyproject.toml

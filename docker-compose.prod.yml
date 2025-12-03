@@ -1,0 +1,326 @@
+services:
+  # PostgreSQL Database - Optimized for 8GB droplet
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: tidyframe
+      POSTGRES_USER: tidyframe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tidyframe"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - tidyframe-network
+    deploy:
+      resources:
+        limits:
+          memory: 384M        # Reduced from 512M
+          cpus: '0.5'
+        reservations:
+          memory: 192M        # Reduced from 256M
+          cpus: '0.25'
+    command: >
+      postgres
+      -c shared_buffers=96MB
+      -c effective_cache_size=256MB
+      -c maintenance_work_mem=32MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=3MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+
+  # Redis Cache and Message Broker - Optimized
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-redis_password}
+      --maxmemory 150m
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --tcp-keepalive 60
+      --timeout 300
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_password}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - tidyframe-network
+    deploy:
+      resources:
+        limits:
+          memory: 192M        # Reduced from 256M
+          cpus: '0.25'
+        reservations:
+          memory: 96M         # Reduced from 128M
+          cpus: '0.1'
+
+  # FastAPI Backend Application - Optimized
+  backend:
+    build: ./backend
+    env_file:
+      - ${ENV_FILE:-.env}
+    environment:
+      # Database
+      DATABASE_URL: postgresql+asyncpg://tidyframe:${POSTGRES_PASSWORD}@postgres:5432/tidyframe
+      
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/2
+      
+      # Application
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: "false"
+      
+      # Site Password Protection
+      ENABLE_SITE_PASSWORD: ${ENABLE_SITE_PASSWORD:-false}
+      SITE_PASSWORD: ${SITE_PASSWORD}
+
+      # Admin Configuration
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+
+      # Token Settings
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+      REFRESH_TOKEN_EXPIRE_MINUTES: ${REFRESH_TOKEN_EXPIRE_MINUTES:-43200}
+      
+      # External APIs
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      
+      # File processing - Optimized for memory
+      UPLOAD_DIR: /app/uploads
+      RESULTS_DIR: /app/results
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-100}  # Reduced from 200MB
+      
+      # Data Retention
+      ANONYMOUS_DATA_RETENTION_HOURS: ${ANONYMOUS_DATA_RETENTION_HOURS:-1}
+      STANDARD_DATA_RETENTION_HOURS: ${STANDARD_DATA_RETENTION_HOURS:-24}
+      ENTERPRISE_DATA_RETENTION_HOURS: ${ENTERPRISE_DATA_RETENTION_HOURS:-720}
+      POST_PROCESSING_RETENTION_MINUTES: ${POST_PROCESSING_RETENTION_MINUTES:-10}
+      
+      # Plan Limits
+      STANDARD_TIER_MONTHLY_LIMIT: ${STANDARD_TIER_MONTHLY_LIMIT:-100000}
+      ENTERPRISE_TIER_MONTHLY_LIMIT: ${ENTERPRISE_TIER_MONTHLY_LIMIT:-10000000}
+      ANONYMOUS_LIFETIME_LIMIT: ${ANONYMOUS_LIFETIME_LIMIT:-3}  # Reduced from 5
+      
+      # CORS
+      ALLOWED_HOSTS_STR: ${ALLOWED_HOSTS_STR:-tidyframe.com,www.tidyframe.com}
+    
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/results:/app/results
+      - ./backend/logs:/app/logs
+      - /tmp:/tmp
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+    
+    restart: unless-stopped
+    networks:
+      - tidyframe-network
+    deploy:
+      resources:
+        limits:
+          memory: 768M        # Reduced from 1G
+          cpus: '0.8'         # Reduced from 1.0
+        reservations:
+          memory: 384M        # Reduced from 512M
+          cpus: '0.4'
+
+  # Celery Worker - Optimized for lower concurrency
+  celery-worker:
+    build: ./backend
+    command: >
+      celery -A app.core.celery_app worker
+      --loglevel=info
+      --concurrency=1
+      --max-tasks-per-child=50
+      --prefetch-multiplier=1
+      --pool=solo
+    env_file:
+      - ${ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tidyframe:${POSTGRES_PASSWORD}@postgres:5432/tidyframe
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/2
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      UPLOAD_DIR: /app/uploads
+      RESULTS_DIR: /app/results
+      POST_PROCESSING_RETENTION_MINUTES: ${POST_PROCESSING_RETENTION_MINUTES:-10}
+      # Memory optimization
+      CELERY_WORKER_MAX_MEMORY_PER_CHILD: 400000  # 400MB in KB
+    
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/results:/app/results
+      - ./backend/logs:/app/logs
+      - /tmp:/tmp
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.core.celery_app", "inspect", "ping"]
+      interval: 45s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+    
+    restart: unless-stopped
+    networks:
+      - tidyframe-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M        # Reduced from 1G
+          cpus: '0.6'         # Reduced from 1.0
+        reservations:
+          memory: 256M        # Reduced from 512M
+          cpus: '0.3'
+
+  # Celery Beat Scheduler - Minimal resources
+  celery-beat:
+    build: ./backend
+    command: celery -A app.core.celery_app beat --loglevel=info
+    env_file:
+      - ${ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tidyframe:${POSTGRES_PASSWORD}@postgres:5432/tidyframe
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/2
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      POST_PROCESSING_RETENTION_MINUTES: ${POST_PROCESSING_RETENTION_MINUTES:-10}
+
+    volumes:
+      - ./backend/logs:/app/logs
+    
+    depends_on:
+      redis:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "sh", "-c", "test -f /proc/1/cmdline && grep -q 'beat' /proc/1/cmdline"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    
+    restart: unless-stopped
+    networks:
+      - tidyframe-network
+    deploy:
+      resources:
+        limits:
+          memory: 192M        # Reduced from 256M
+          cpus: '0.2'         # Reduced from 0.25
+        reservations:
+          memory: 96M         # Reduced from 128M
+          cpus: '0.1'
+
+  # Nginx Reverse Proxy - Optimized for memory
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - tidyframe-network
+    deploy:
+      resources:
+        limits:
+          memory: 96M         # Reduced from 128M
+          cpus: '0.3'         # Reduced from 0.5
+        reservations:
+          memory: 48M         # Reduced from 64M
+          cpus: '0.1'
+
+  # Certbot for SSL certificates - Minimal resources
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped
+    networks:
+      - tidyframe-network
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.1'
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  tidyframe-network:
+    driver: bridge
+
+# Total Memory Allocation Summary:
+# postgres:      384M limit (192M reservation)
+# redis:         192M limit (96M reservation)
+# backend:       768M limit (384M reservation) - includes static files
+# celery-worker: 512M limit (256M reservation)
+# celery-beat:   192M limit (96M reservation)
+# nginx:         96M limit (48M reservation)
+# certbot:       64M limit
+#
+# TOTAL LIMITS:  2.21GB (optimized - no frontend-builder needed)
+# TOTAL RESERVATIONS: 1.07GB
+#
+# Remaining for system: ~5.3GB (excellent buffer for 8GB droplet)
+# Note: Frontend static files now bundled in backend Docker image

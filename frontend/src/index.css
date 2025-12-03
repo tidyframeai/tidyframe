@@ -1,0 +1,704 @@
+@import "tailwindcss";
+
+/* Import Inter font for beautiful typography */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  /* Apple HIG - Typography Scale (rem-based for web) */
+  --font-size-xs: 0.75rem;      /* 12px */
+  --font-size-sm: 0.875rem;     /* 14px */
+  --font-size-base: 1rem;       /* 16px */
+  --font-size-lg: 1.125rem;     /* 18px */
+  --font-size-xl: 1.25rem;      /* 20px */
+  --font-size-2xl: 1.5rem;      /* 24px */
+  --font-size-3xl: 1.875rem;    /* 30px */
+  --font-size-4xl: 2.25rem;     /* 36px */
+  --font-size-5xl: 3rem;        /* 48px */
+  --font-size-6xl: 3.75rem;     /* 60px */
+
+  /* Apple HIG - Line Heights */
+  --line-height-none: 1;
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+
+  /* Apple HIG - Font Weights */
+  --font-weight-normal: 400;    /* Body text, descriptions */
+  --font-weight-medium: 500;    /* Emphasized body, buttons, labels */
+  --font-weight-semibold: 600;  /* Subheadings, important UI elements */
+  --font-weight-bold: 700;      /* Headings, hero text */
+  --font-weight-black: 900;     /* Stats, large numbers, hero elements */
+
+  /* Apple HIG - Border Radius (web-appropriate) */
+  --radius-sm: 0.25rem;    /* 4px */
+  --radius-md: 0.5rem;     /* 8px */
+  --radius-lg: 0.75rem;    /* 12px */
+  --radius-xl: 1rem;       /* 16px */
+  --radius-2xl: 1.5rem;    /* 24px */
+  --radius: 0.5rem;        /* Default: 8px */
+
+  /* Apple HIG - 8pt Spacing Scale */
+  --spacing-0: 0;
+  --spacing-1: 0.25rem;    /* 4px */
+  --spacing-2: 0.5rem;     /* 8px */
+  --spacing-3: 0.75rem;    /* 12px */
+  --spacing-4: 1rem;       /* 16px */
+  --spacing-5: 1.25rem;    /* 20px */
+  --spacing-6: 1.5rem;     /* 24px */
+  --spacing-8: 2rem;       /* 32px */
+  --spacing-10: 2.5rem;    /* 40px */
+  --spacing-12: 3rem;      /* 48px */
+  --spacing-16: 4rem;      /* 64px */
+  --spacing-20: 5rem;      /* 80px */
+  --spacing-24: 6rem;      /* 96px */
+
+  /* Apple HIG - Typography Hierarchy */
+  --font-size-large-title: 2.125rem;  /* 34px */
+  --font-size-title-1: 1.75rem;       /* 28px */
+  --font-size-title-2: 1.375rem;      /* 22px */
+  --font-size-title-3: 1.25rem;       /* 20px */
+  --font-size-headline: 1.0625rem;    /* 17px */
+  --font-size-body: 1.0625rem;        /* 17px */
+  --font-size-callout: 1rem;          /* 16px */
+  --font-size-subhead: 0.9375rem;     /* 15px */
+  --font-size-footnote: 0.8125rem;    /* 13px */
+  --font-size-caption: 0.75rem;       /* 12px */
+
+  /* Apple HIG - Elevation/Shadow System */
+  --shadow-0: none;
+  --shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.05);                    /* Card resting */
+  --shadow-2: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); /* Card hover, Dropdown */
+  --shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); /* Modal */
+  --shadow-4: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); /* Popover */
+  --shadow-5: 0 25px 50px -12px rgb(0 0 0 / 0.25);              /* Drawer */
+
+  /* Apple HIG - Transition Timing */
+  --duration-instant: 100ms;
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 400ms;
+
+  /* Apple HIG - Transition Easing */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Interaction State Opacity */
+  --opacity-hover: 0.9;
+  --opacity-active: 0.95;
+  --opacity-disabled: 0.4;
+
+  /* Apple HIG - Opacity Scale (extending interaction states) */
+  --opacity-0: 0;
+  --opacity-50: 0.5;     /* Disabled, subdued icons */
+  --opacity-60: 0.6;     /* Shortcuts, metadata */
+  --opacity-70: 0.7;     /* Secondary elements */
+  --opacity-75: 0.75;    /* Text overlays */
+  --opacity-90: 0.9;     /* Hover (alias for --opacity-hover) */
+  --opacity-95: 0.95;    /* Active (alias for --opacity-active) */
+  --opacity-100: 1;      /* Full visibility */
+
+  /* Apple HIG - Z-Index Layering (Stacking Context Hierarchy) */
+  --z-base: 0;           /* Default layer */
+  --z-dropdown: 10;      /* Dropdowns, navigation menus */
+  --z-sticky: 20;        /* Sticky headers, floating elements */
+  --z-overlay: 30;       /* Modal backdrops, overlays */
+  --z-sidebar: 40;       /* Sidebars, drawers */
+  --z-modal: 50;         /* Modals, dialogs, tooltips, popovers */
+
+  /* LIGHT MODE - TidyFrame Brand Colors */
+  --color-background: 0 0% 100%;              /* Pure white #ffffff */
+  --color-foreground: 0 0% 0%;                /* Pure black #000000 */
+
+  /* Primary Brand Color - Vibrant modern blue */
+  --color-primary-50: 228 93% 97%;            /* Lightest tint */
+  --color-primary-100: 228 93% 92%;           /* Very light */
+  --color-primary-200: 228 93% 82%;           /* Light */
+  --color-primary-300: 228 93% 72%;           /* Medium light */
+  --color-primary-400: 228 93% 57%;           /* Medium */
+  --color-primary-500: 228 93% 45%;           /* Base - More vibrant (was 35%) */
+  --color-primary-600: 228 93% 35%;           /* Medium dark */
+  --color-primary-700: 228 93% 28%;           /* Dark */
+  --color-primary-800: 228 85% 22%;           /* Very dark */
+  --color-primary-900: 228 75% 16%;           /* Darkest */
+  --color-primary: var(--color-primary-500);
+  --color-primary-foreground: 0 0% 100%;      /* White text on blue */
+
+  /* Secondary Brand Color - Softer cyan/teal */
+  --color-secondary-50: 192 75% 97%;          /* Lightest tint */
+  --color-secondary-100: 192 75% 92%;         /* Very light */
+  --color-secondary-200: 192 75% 85%;         /* Light */
+  --color-secondary-300: 192 70% 70%;         /* Medium light */
+  --color-secondary-400: 192 65% 48%;         /* Base - Softer (was 80% saturation) */
+  --color-secondary-500: 192 65% 42%;         /* Medium */
+  --color-secondary-600: 192 65% 35%;         /* Medium dark */
+  --color-secondary-700: 192 60% 28%;         /* Dark */
+  --color-secondary-800: 192 55% 22%;         /* Very dark */
+  --color-secondary-900: 192 50% 16%;         /* Darkest */
+  --color-secondary: var(--color-secondary-400);
+  --color-secondary-foreground: 0 0% 100%;    /* White text for better contrast */
+
+  /* Neutral/Muted - Enhanced for accessibility */
+  --color-muted: 0 0% 96%;                    /* #f5f5f5 - Very light gray */
+  --color-muted-foreground: 0 0% 35%;         /* #595959 - Darker gray for 8.5:1 ratio */
+
+  /* Cards & Popovers */
+  --color-card: 0 0% 100%;                    /* White cards */
+  --color-card-foreground: 0 0% 0%;           /* Black text */
+  --color-popover: 0 0% 100%;
+  --color-popover-foreground: 0 0% 0%;
+
+  /* Accent (for highlights) - Brand tinted */
+  --color-accent: 192 92% 92%;                /* Light secondary blue tint */
+  --color-accent-foreground: 228 93% 35%;     /* Darker primary blue text */
+
+  /* Semantic Colors - BRAND DERIVED for consistency */
+  /* Success: Brand blue shifted to green (150°), matching saturation */
+  --color-success-50: 150 85% 97%;
+  --color-success-100: 150 85% 92%;
+  --color-success-500: 150 85% 42%;           /* Base success - brand-matched */
+  --color-success-600: 150 85% 35%;
+  --color-success: var(--color-success-500);
+  --color-success-foreground: 0 0% 100%;
+
+  /* Warning: Enhanced amber for better contrast */
+  --color-warning-50: 38 90% 97%;
+  --color-warning-100: 38 90% 92%;
+  --color-warning-500: 38 90% 35%;            /* Base warning - 6.2:1 contrast */
+  --color-warning-600: 38 90% 30%;
+  --color-warning: var(--color-warning-500);
+  --color-warning-foreground: 0 0% 100%;      /* White text for better contrast */
+
+  /* Destructive: Brand blue shifted to red (0°), matching saturation */
+  --color-destructive-50: 0 90% 97%;
+  --color-destructive-100: 0 90% 92%;
+  --color-destructive-500: 0 90% 55%;         /* Base destructive - brand-matched */
+  --color-destructive-600: 0 90% 45%;
+  --color-destructive: var(--color-destructive-500);
+  --color-destructive-foreground: 0 0% 100%;
+
+  /* Info: Uses primary brand color for consistency */
+  --color-info: var(--color-primary-500);
+  --color-info-foreground: 0 0% 100%;
+
+  /* Status Colors - Derived from semantic colors for consistency */
+  --color-status-success: var(--color-success-500);
+  --color-status-success-bg: var(--color-success-50);
+  --color-status-success-border: var(--color-success-200);
+  --color-status-warning: var(--color-warning-500);
+  --color-status-warning-bg: var(--color-warning-50);
+  --color-status-warning-border: var(--color-warning-200);
+  --color-status-error: var(--color-destructive-500);
+  --color-status-error-bg: var(--color-destructive-50);
+  --color-status-error-border: var(--color-destructive-200);
+  --color-status-info: var(--color-info);
+  --color-status-info-bg: var(--color-primary-50);
+  --color-status-info-border: var(--color-primary-200);
+  --color-status-processing: var(--color-secondary-600);
+  --color-status-processing-bg: var(--color-secondary-50);
+  --color-status-processing-border: var(--color-secondary-200);
+
+  /* Borders - Enhanced system for nested elements */
+  --color-border: 0 0% 65%;                   /* #a6a6a6 - Darker gray (4.5:1+ contrast) */
+  --color-border-subtle: 0 0% 85%;            /* #d9d9d9 - Subtle borders for inner elements */
+  --color-border-default: 0 0% 65%;           /* #a6a6a6 - Default border (alias) */
+  --color-border-strong: 0 0% 50%;            /* #808080 - Emphasized borders for focus/active */
+  --color-input: 0 0% 65%;                    /* Match border for consistency */
+  --color-ring: 228 93% 42%;                  /* Primary blue focus */
+
+  /* Drop Zone (Always Visible!) */
+  --color-drop-zone: var(--color-primary-50);
+  --color-drop-zone-active: var(--color-primary-100);
+  --color-drop-zone-hover: var(--color-primary-75);
+
+  /* Modern Font Stack */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Oxygen, Ubuntu, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Monaco, 'Courier New', monospace;
+
+  /* Premium Gradients */
+  --gradient-primary: linear-gradient(135deg, hsl(var(--color-primary-500)) 0%, hsl(var(--color-primary-600)) 100%);
+  --gradient-secondary: linear-gradient(135deg, hsl(var(--color-secondary-400)) 0%, hsl(var(--color-secondary-500)) 100%);
+  --gradient-brand: linear-gradient(135deg, hsl(var(--color-primary-500)) 0%, hsl(var(--color-secondary-400)) 100%);
+  --gradient-success: linear-gradient(135deg, hsl(var(--color-success-500)) 0%, hsl(var(--color-success-600)) 100%);
+  --gradient-hero: linear-gradient(135deg, hsl(var(--color-primary-500)) 0%, hsl(var(--color-secondary-400)) 50%, hsl(var(--color-primary-600)) 100%);
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* DARK MODE - TidyFrame Brand Colors */
+  --color-background: 0 0% 10%;               /* #1a1a1a - Darker base for better hierarchy */
+  --color-foreground: 0 0% 98%;               /* #fafafa - Near white */
+
+  /* Primary Brand Color - Adjusted for dark mode (slightly brighter) */
+  --color-primary-50: 228 85% 12%;            /* Darkest (reversed) */
+  --color-primary-100: 228 85% 18%;           /* Very dark */
+  --color-primary-200: 228 85% 25%;           /* Dark */
+  --color-primary-300: 228 90% 35%;           /* Medium dark */
+  --color-primary-400: 228 90% 45%;           /* Medium */
+  --color-primary-500: 228 93% 55%;           /* Base - brightened for dark */
+  --color-primary-600: 228 93% 65%;           /* Medium light */
+  --color-primary-700: 228 93% 75%;           /* Light */
+  --color-primary-800: 228 93% 85%;           /* Very light */
+  --color-primary-900: 228 93% 92%;           /* Lightest */
+  --color-primary: var(--color-primary-500);
+  --color-primary-foreground: 0 0% 0%;        /* Black text on bright blue */
+
+  /* Secondary Brand Color - Adjusted for dark mode */
+  --color-secondary-50: 192 85% 16%;          /* Darkest (reversed) */
+  --color-secondary-100: 192 85% 22%;         /* Very dark */
+  --color-secondary-200: 192 85% 30%;         /* Dark */
+  --color-secondary-300: 192 90% 40%;         /* Medium dark */
+  --color-secondary-400: 192 92% 76%;         /* Base - same as light */
+  --color-secondary-500: 192 92% 80%;         /* Medium light */
+  --color-secondary-600: 192 92% 85%;         /* Light */
+  --color-secondary-700: 192 92% 88%;         /* Very light */
+  --color-secondary-800: 192 92% 92%;         /* Lighter */
+  --color-secondary-900: 192 92% 95%;         /* Lightest */
+  --color-secondary: var(--color-secondary-400);
+  --color-secondary-foreground: 0 0% 0%;
+
+  /* Neutral/Muted */
+  --color-muted: 0 0% 24%;                    /* #3d3d3d - Enhanced contrast (14% from background) */
+  --color-muted-foreground: 0 0% 65%;         /* #a6a6a6 - Lighter gray for better contrast */
+
+  /* Cards & Popovers (elevated surfaces) */
+  --color-card: 0 0% 16%;                     /* #292929 - 6% lighter than background for clear hierarchy */
+  --color-card-foreground: 0 0% 98%;
+  --color-popover: 0 0% 18%;                  /* #2e2e2e - Between card and muted for clear layering */
+  --color-popover-foreground: 0 0% 98%;
+
+  /* Accent - Brand tinted */
+  --color-accent: 0 0% 20%;                   /* #333333 - Neutral for better hover contrast */
+  --color-accent-foreground: 192 92% 85%;     /* Brighter text for better contrast */
+
+  /* Semantic Colors - BRAND DERIVED (dark mode adjusted) */
+  /* Success: Brightened for dark mode visibility */
+  --color-success-50: 150 75% 16%;
+  --color-success-100: 150 80% 22%;
+  --color-success-500: 150 85% 50%;           /* Brightened base */
+  --color-success-600: 150 85% 60%;
+  --color-success: var(--color-success-500);
+  --color-success-foreground: 0 0% 0%;
+
+  /* Warning: Brightened for dark mode visibility */
+  --color-warning-50: 38 85% 18%;
+  --color-warning-100: 38 85% 24%;
+  --color-warning-500: 38 90% 60%;            /* Brightened base */
+  --color-warning-600: 38 90% 68%;
+  --color-warning: var(--color-warning-500);
+  --color-warning-foreground: 0 0% 0%;
+
+  /* Destructive: Brightened for dark mode visibility */
+  --color-destructive-50: 0 85% 18%;
+  --color-destructive-100: 0 85% 25%;
+  --color-destructive-500: 0 90% 65%;         /* Brightened base */
+  --color-destructive-600: 0 90% 72%;
+  --color-destructive: var(--color-destructive-500);
+  --color-destructive-foreground: 0 0% 0%;
+
+  /* Info: Uses brightened primary */
+  --color-info: var(--color-primary-500);
+  --color-info-foreground: 0 0% 0%;
+
+  /* Status Colors - Derived from semantic colors (dark mode) */
+  --color-status-success: var(--color-success-500);
+  --color-status-success-bg: var(--color-success-50);
+  --color-status-success-border: var(--color-success-100);
+  --color-status-warning: var(--color-warning-500);
+  --color-status-warning-bg: var(--color-warning-50);
+  --color-status-warning-border: var(--color-warning-100);
+  --color-status-error: var(--color-destructive-500);
+  --color-status-error-bg: var(--color-destructive-50);
+  --color-status-error-border: var(--color-destructive-100);
+  --color-status-info: var(--color-info);
+  --color-status-info-bg: var(--color-primary-50);
+  --color-status-info-border: var(--color-primary-100);
+  --color-status-processing: var(--color-secondary-400);
+  --color-status-processing-bg: var(--color-secondary-50);
+  --color-status-processing-border: var(--color-secondary-100);
+
+  /* Borders (dark mode) - Enhanced system for nested elements */
+  --color-border: 0 0% 38%;                   /* #616161 - WCAG AA compliant (3.2:1 contrast) */
+  --color-border-subtle: 0 0% 25%;            /* #404040 - Subtle borders for inner elements */
+  --color-border-default: 0 0% 38%;           /* #616161 - Default border (alias) */
+  --color-border-strong: 0 0% 50%;            /* #808080 - Emphasized borders for focus/active */
+  --color-input: 0 0% 38%;                    /* Match border for consistency */
+  --color-ring: 192 92% 76%;                  /* Secondary blue focus (bright) */
+
+  /* Drop Zone */
+  --color-drop-zone: var(--color-primary-50);
+  --color-drop-zone-active: var(--color-primary-100);
+  --color-drop-zone-hover: var(--color-primary-75);
+}
+
+* {
+  border-color: hsl(var(--color-border));
+}
+
+body {
+  background-color: hsl(var(--color-background));
+  color: hsl(var(--color-foreground));
+  margin: 0;
+  /* Modern Typography with Inter */
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base); /* 16px - web standard */
+  line-height: var(--line-height-normal); /* 1.5 */
+  font-weight: var(--font-weight-normal); /* 400 - body text default */
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Typography Hierarchy - Consistent font weights */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: var(--font-weight-bold); /* 700 - all headings */
+}
+
+button, .button {
+  font-weight: var(--font-weight-medium); /* 500 - all buttons */
+}
+
+label, .label {
+  font-weight: var(--font-weight-medium); /* 500 - form labels */
+}
+
+strong, b {
+  font-weight: var(--font-weight-semibold); /* 600 - emphasized text */
+}
+
+@keyframes accordion-down {
+  from { height: 0 }
+  to { height: var(--radix-accordion-content-height) }
+}
+
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height) }
+  to { height: 0 }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-accordion-down {
+  animation: accordion-down 0.2s ease-out;
+}
+
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s ease-in-out infinite;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--color-muted)) 0%,
+    hsl(var(--color-muted) / 0.8) 20%,
+    hsl(var(--color-muted) / 0.6) 50%,
+    hsl(var(--color-muted) / 0.8) 80%,
+    hsl(var(--color-muted)) 100%
+  );
+  background-size: 200% 100%;
+}
+
+/* Ensure dropdown menus have proper z-index */
+[data-radix-navigation-menu-content],
+[data-radix-dropdown-menu-content] {
+  z-index: 50 !important;
+}
+
+/* Ensure navigation menu dropdown items have proper hover states */
+[data-radix-navigation-menu-content] a:hover,
+[data-radix-navigation-menu-content] a:focus {
+  background-color: hsl(var(--color-accent)) !important;
+}
+
+/* Focus Indicators - Accessibility First */
+/* Remove default focus outline, we'll add custom focus-visible */
+*:focus {
+  outline: none;
+}
+
+/* Add visible focus ring for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid hsl(var(--color-ring));
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Button focus states */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid hsl(var(--color-ring));
+  outline-offset: 2px;
+}
+
+/* Input focus states */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid hsl(var(--color-ring));
+  outline-offset: 0px;
+  box-shadow: 0 0 0 3px hsl(var(--color-ring) / 0.1);
+}
+
+/* Card/Interactive container focus */
+[tabindex]:focus-visible {
+  outline: 2px solid hsl(var(--color-ring));
+  outline-offset: 2px;
+}
+
+/* Modern Animation Keyframes */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Animation Classes */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-fade-out {
+  animation: fadeOut 0.3s ease-out;
+}
+
+.animate-slide-in-up {
+  animation: slideInUp 0.4s ease-out;
+}
+
+.animate-slide-in-down {
+  animation: slideInDown 0.4s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.4s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.4s ease-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s ease-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Smooth Transitions for Interactive Elements */
+button,
+a,
+[role="button"],
+.card,
+.interactive {
+  transition-property: transform, box-shadow, background-color, border-color, color, opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Card Hover Effects */
+.card:hover,
+[data-card]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+/* Button Press Effect */
+button:active,
+[role="button"]:active {
+  transform: scale(0.98);
+}
+
+/* Smooth Focus Ring Transition */
+*:focus-visible {
+  transition: outline 0.15s ease-out, outline-offset 0.15s ease-out;
+}
+
+/* Page Transition */
+.page-transition {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Stagger Children Animation */
+.stagger-children > * {
+  opacity: 0;
+  animation: slideInUp 0.4s ease-out forwards;
+}
+
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+
+/* ================================================================
+   Responsive Utilities - Mobile, Tablet, Desktop, Ultrawide
+   ================================================================ */
+
+/* Touch-friendly interactive elements on mobile */
+@media (max-width: 768px) {
+  /* Ensure all interactive elements meet Apple's minimum touch target */
+  button:not(.no-touch-target),
+  [role="button"]:not(.no-touch-target),
+  a.button:not(.no-touch-target),
+  input[type="button"]:not(.no-touch-target),
+  input[type="submit"]:not(.no-touch-target) {
+    min-height: 44px;  /* Apple HIG minimum */
+    min-width: 44px;
+  }
+
+  /* Increase padding on mobile for easier tapping */
+  .mobile-friendly-padding {
+    padding: 1rem !important;
+  }
+
+  /* Prevent text from being too small on mobile */
+  body {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+}
+
+/* Ultrawide display constraints - prevent over-stretching */
+@media (min-width: 2560px) {
+  /* Constrain main content areas */
+  .container {
+    max-width: 1920px;
+  }
+
+  /* Comfortable reading width for text-heavy sections */
+  .prose,
+  article,
+  .text-content {
+    max-width: 1440px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* Tablet-specific optimizations */
+@media (min-width: 768px) and (max-width: 1024px) {
+  /* Adjust grid columns for tablet sweet spot */
+  .tablet-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .tablet-cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* High DPI / Retina display optimization */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  /* Ensure crisp rendering on retina displays */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Theme classes for dark mode */

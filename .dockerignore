@@ -1,0 +1,171 @@
+# ================================
+# Root .dockerignore
+# Project-wide exclusions for Docker builds
+# ================================
+
+# ================================
+# Version Control & CI/CD
+# ================================
+.git/
+.gitignore
+.github/
+.travis.yml
+.circleci/
+Jenkinsfile
+.gitlab-ci.yml
+
+# ================================
+# Development & IDE
+# ================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ================================
+# Documentation & README
+# ================================
+*.md
+docs/
+documentation/
+
+# ================================
+# Environment Files
+# ================================
+.env*
+!.env.example
+*.env
+
+# ================================
+# Logs & Temporary Files
+# ================================
+logs/
+*.log
+tmp/
+temp/
+.tmp/
+
+# ================================
+# OS Files
+# ================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ================================
+# Build Artifacts
+# ================================
+node_modules/
+dist/
+build/
+coverage/
+
+# ================================
+# Docker Files (avoid recursion)
+# ================================
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# ================================
+# Test Data & Mock Files
+# ================================
+test-data/
+sample_data/
+mock/
+fixtures/
+__tests__/
+test_results/
+*.test.*
+*.spec.*
+
+# ================================
+# Backup Files
+# ================================
+*.bak
+*.backup
+*.old
+backup/
+backups/
+archived_files/
+dev-archive/
+
+# ================================
+# Security & Secrets
+# ================================
+*.pem
+*.key
+*.crt
+secrets/
+credentials.json
+
+# ================================
+# Performance & Profiling
+# ================================
+*.prof
+.prof/
+profile/
+
+# ================================
+# CRITICAL: Nginx Config Directories
+# ================================
+# Prevent directories in nginx/conf.d from being included
+nginx/conf.d/*/
+nginx/conf.d/**/*.disabled*
+nginx/conf.d/temp-*.conf
+
+# ================================
+# Test Files & Data
+# ================================
+# Test files in wrong locations
+backend/app/test_*.py
+backend/app/*_test.py
+backend/app/final_*.py
+test_*.csv
+test-data/
+test_data/
+
+# ================================
+# Deployment Artifacts
+# ================================
+*.tar.gz
+backend-deploy*.tar.gz
+tidyframe-secrets*.tar.gz
+
+# ================================
+# Authentication & Cookies
+# ================================
+*_cookies.txt
+*cookies.txt
+
+# ================================
+# Windows Metadata
+# ================================
+*.Zone.Identifier
+*.mshield
+
+# ================================
+# Logo/Image Files in Root
+# ================================
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.pdf
+
+# ================================
+# Documentation (keep essential only)
+# ================================
+/DEPLOYMENT*.md
+/FIXES*.md
+/E2E_TEST*.md
+/test-*.md
+
+# ================================
+# Python Cache (if missed by other rules)
+# ================================
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd

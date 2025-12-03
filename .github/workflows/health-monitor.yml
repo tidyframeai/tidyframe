@@ -1,0 +1,302 @@
+name: Production Health Monitor
+
+# Continuous health monitoring for production environment
+# Runs every 15 minutes to detect issues early
+# Creates GitHub issues for critical failures
+
+on:
+  schedule:
+    # Run every 15 minutes
+    - cron: '*/15 * * * *'
+
+  # Allow manual health checks
+  workflow_dispatch:
+    inputs:
+      detailed:
+        description: 'Run detailed health checks'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  health-check:
+    name: Production Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check main website
+        id: website_check
+        run: |
+          echo "🌐 Checking main website..."
+
+          # Check if site loads
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://tidyframe.com/ || echo "000")
+          RESPONSE_TIME=$(curl -s -o /dev/null -w "%{time_total}" https://tidyframe.com/ || echo "0")
+
+          echo "status_code=$STATUS_CODE" >> $GITHUB_OUTPUT
+          echo "response_time=$RESPONSE_TIME" >> $GITHUB_OUTPUT
+
+          if [ "$STATUS_CODE" = "200" ]; then
+            echo "✅ Website is up (${STATUS_CODE}) - Response time: ${RESPONSE_TIME}s"
+          else
+            echo "❌ Website returned status: $STATUS_CODE"
+            exit 1
+          fi
+
+      - name: Check health endpoint
+        id: health_endpoint
+        run: |
+          echo "🏥 Checking health endpoint..."
+
+          HEALTH_RESPONSE=$(curl -s https://tidyframe.com/health || echo "ERROR")
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://tidyframe.com/health || echo "000")
+
+          echo "health_status=$HEALTH_STATUS" >> $GITHUB_OUTPUT
+
+          if [ "$HEALTH_STATUS" = "200" ]; then
+            echo "✅ Health endpoint is responsive"
+            echo "Response: $HEALTH_RESPONSE"
+          else
+            echo "❌ Health endpoint failed: $HEALTH_STATUS"
+            exit 1
+          fi
+
+      - name: Check API endpoints
+        id: api_check
+        run: |
+          echo "🔌 Checking API endpoints..."
+
+          # Check API health
+          API_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" https://tidyframe.com/api/health || echo "000")
+
+          echo "api_health=$API_HEALTH" >> $GITHUB_OUTPUT
+
+          # 200 (healthy) or 401 (auth required but running) are both OK
+          if [ "$API_HEALTH" = "200" ] || [ "$API_HEALTH" = "401" ]; then
+            echo "✅ API is responsive (status: $API_HEALTH)"
+          else
+            echo "❌ API health check failed: $API_HEALTH"
+            exit 1
+          fi
+
+      - name: Check SSL certificate
+        id: ssl_check
+        continue-on-error: true
+        run: |
+          echo "🔒 Checking SSL certificate..."
+
+          # Get certificate expiry date
+          EXPIRY_DATE=$(echo | openssl s_client -servername tidyframe.com -connect tidyframe.com:443 2>/dev/null | openssl x509 -noout -dates | grep notAfter | cut -d= -f2)
+          EXPIRY_EPOCH=$(date -d "$EXPIRY_DATE" +%s 2>/dev/null || echo "0")
+          NOW_EPOCH=$(date +%s)
+          DAYS_UNTIL_EXPIRY=$(( ($EXPIRY_EPOCH - $NOW_EPOCH) / 86400 ))
+
+          echo "days_until_expiry=$DAYS_UNTIL_EXPIRY" >> $GITHUB_OUTPUT
+
+          if [ $DAYS_UNTIL_EXPIRY -gt 30 ]; then
+            echo "✅ SSL certificate valid (expires in $DAYS_UNTIL_EXPIRY days)"
+          elif [ $DAYS_UNTIL_EXPIRY -gt 7 ]; then
+            echo "⚠️  SSL certificate expires soon ($DAYS_UNTIL_EXPIRY days)"
+          else
+            echo "❌ SSL certificate expires very soon ($DAYS_UNTIL_EXPIRY days)!"
+          fi
+
+      - name: Check container health (via SSH)
+        id: container_check
+        if: inputs.detailed || github.event_name == 'workflow_dispatch'
+        uses: appleboy/ssh-action@v1.0.0
+        continue-on-error: true
+        with:
+          host: ${{ secrets.PROD_SERVER_HOST }}
+          username: ${{ secrets.PROD_SERVER_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/tidyframe
+
+            echo "🐳 Checking container health..."
+
+            # Check all required services
+            REQUIRED_SERVICES="backend nginx postgres redis celery-worker celery-beat"
+            ALL_HEALTHY=true
+
+            for service in $REQUIRED_SERVICES; do
+              STATUS=$(docker compose -f docker-compose.prod.yml ps $service --format json 2>/dev/null | jq -r '.[0].State // "unknown"' 2>/dev/null || echo "unknown")
+
+              if [ "$STATUS" = "running" ]; then
+                echo "✅ $service is running"
+              else
+                echo "❌ $service is not running (status: $STATUS)"
+                ALL_HEALTHY=false
+              fi
+            done
+
+            if [ "$ALL_HEALTHY" = false ]; then
+              echo "⚠️  Some services are unhealthy"
+              exit 1
+            fi
+
+      - name: Check disk space (via SSH)
+        id: disk_check
+        if: inputs.detailed || github.event_name == 'workflow_dispatch'
+        uses: appleboy/ssh-action@v1.0.0
+        continue-on-error: true
+        with:
+          host: ${{ secrets.PROD_SERVER_HOST }}
+          username: ${{ secrets.PROD_SERVER_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            echo "💾 Checking disk space..."
+
+            DISK_USAGE=$(df -h /opt/tidyframe | awk 'NR==2 {print $5}' | sed 's/%//')
+
+            echo "Disk usage: ${DISK_USAGE}%"
+
+            if [ "$DISK_USAGE" -lt 70 ]; then
+              echo "✅ Disk space is healthy (${DISK_USAGE}% used)"
+            elif [ "$DISK_USAGE" -lt 85 ]; then
+              echo "⚠️  Disk usage is high (${DISK_USAGE}% used)"
+            else
+              echo "❌ Disk space is critically low (${DISK_USAGE}% used)"
+              exit 1
+            fi
+
+      - name: Health check summary
+        if: always()
+        run: |
+          echo "📊 ======================================"
+          echo "   Production Health Check Summary"
+          echo "======================================"
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo ""
+          echo "Website Status: ${{ steps.website_check.outputs.status_code || 'N/A' }}"
+          echo "Response Time: ${{ steps.website_check.outputs.response_time || 'N/A' }}s"
+          echo "Health Endpoint: ${{ steps.health_endpoint.outputs.health_status || 'N/A' }}"
+          echo "API Status: ${{ steps.api_check.outputs.api_health || 'N/A' }}"
+          echo "SSL Expiry: ${{ steps.ssl_check.outputs.days_until_expiry || 'N/A' }} days"
+          echo "======================================"
+
+  alert-on-failure:
+    name: Create Alert Issue
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: failure()
+
+    steps:
+      - name: Create GitHub issue for health check failure
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const timestamp = new Date().toISOString();
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            // Check if there's already an open health issue
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'health-check,alert',
+              per_page: 1
+            });
+
+            const issueBody = `## 🚨 Production Health Check Failed
+
+            **Timestamp:** ${timestamp}
+            **Workflow Run:** ${runUrl}
+
+            ### Details
+            The automated health monitoring detected issues with the production environment.
+
+            ### Immediate Actions Required
+            1. Check production logs: \`docker compose -f docker-compose.prod.yml logs\`
+            2. Verify all services are running: \`docker compose -f docker-compose.prod.yml ps\`
+            3. Check recent deployments for potential issues
+            4. Review application errors and performance metrics
+
+            ### Quick Diagnosis
+            \`\`\`bash
+            # SSH into production server
+            ssh root@tidyframe.com
+
+            # Check service status
+            cd /opt/tidyframe
+            docker compose -f docker-compose.prod.yml ps
+
+            # Check logs
+            docker compose -f docker-compose.prod.yml logs --tail=100 backend
+
+            # Check health endpoint manually
+            curl https://tidyframe.com/health
+            \`\`\`
+
+            ### Potential Causes
+            - Service crash or restart
+            - Database connection issues
+            - SSL certificate problems
+            - Resource exhaustion (disk, memory, CPU)
+            - Network connectivity issues
+            - Recent deployment failures
+
+            ---
+            *This issue was automatically created by the health monitoring workflow.*
+            *It will be automatically closed when health checks pass again.*
+            `;
+
+            if (existingIssues.data.length === 0) {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: '🚨 Production Health Check Failed',
+                body: issueBody,
+                labels: ['health-check', 'alert', 'production', 'priority-high']
+              });
+              console.log('Created new health check failure issue');
+            } else {
+              // Update existing issue with new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssues.data[0].number,
+                body: `### 🔄 Health Check Still Failing\n\n**Timestamp:** ${timestamp}\n**Workflow Run:** ${runUrl}\n\nThe production environment is still experiencing issues.`
+              });
+              console.log('Updated existing health check issue');
+            }
+
+  close-resolved-issues:
+    name: Close Resolved Health Issues
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: success()
+
+    steps:
+      - name: Close resolved health check issues
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Find open health check issues
+            const openIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'health-check,alert'
+            });
+
+            for (const issue of openIssues.data) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: '✅ **Health Check Recovered**\n\nProduction environment is healthy again. Automatically closing this issue.\n\n*Timestamp:* ' + new Date().toISOString()
+              });
+
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+                state_reason: 'completed'
+              });
+
+              console.log(`Closed resolved health issue #${issue.number}`);
+            }

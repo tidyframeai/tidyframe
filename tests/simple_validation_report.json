@@ -1,0 +1,180 @@
+{
+  "overall_status": "\ud83d\udc80 SYSTEM BROKEN - DO NOT DEPLOY",
+  "production_ready": false,
+  "summary": {
+    "total_tests": 20,
+    "passed": 8,
+    "failed": 7,
+    "warnings": 5,
+    "pass_rate": 40.0
+  },
+  "critical_issues": [
+    {
+      "test": "CORS Headers",
+      "details": "Missing CORS headers",
+      "criticality": "HIGH"
+    },
+    {
+      "test": "Security: X-Content-Type-Options",
+      "details": "Missing header",
+      "criticality": "HIGH"
+    },
+    {
+      "test": "Security: X-Frame-Options",
+      "details": "Missing header",
+      "criticality": "HIGH"
+    },
+    {
+      "test": "Security: Content-Security-Policy",
+      "details": "Missing header",
+      "criticality": "HIGH"
+    },
+    {
+      "test": "Gemini API Key",
+      "details": "GEMINI_API_KEY not set",
+      "criticality": "CRITICAL"
+    }
+  ],
+  "results": [
+    {
+      "test": "Backend Health",
+      "status": "PASS",
+      "details": "Service is healthy",
+      "criticality": "CRITICAL",
+      "timestamp": 1757384366.222538
+    },
+    {
+      "test": "Service: Backend",
+      "status": "PASS",
+      "details": "Responding on localhost:8000",
+      "criticality": "MEDIUM",
+      "timestamp": 1757384366.2242987
+    },
+    {
+      "test": "Service: Redis",
+      "status": "WARNING",
+      "details": "Cannot test without additional libraries",
+      "criticality": "MEDIUM",
+      "timestamp": 1757384366.2243404
+    },
+    {
+      "test": "Service: Postgres",
+      "status": "WARNING",
+      "details": "Cannot test without additional libraries",
+      "criticality": "MEDIUM",
+      "timestamp": 1757384366.2243433
+    },
+    {
+      "test": "Service: Flower",
+      "status": "PASS",
+      "details": "Responding on localhost:5555",
+      "criticality": "MEDIUM",
+      "timestamp": 1757384366.2722163
+    },
+    {
+      "test": "Service: Frontend",
+      "status": "PASS",
+      "details": "Responding on localhost:3001",
+      "criticality": "MEDIUM",
+      "timestamp": 1757384366.3107853
+    },
+    {
+      "test": "API Docs",
+      "status": "WARNING",
+      "details": "Docs disabled (production mode?)",
+      "criticality": "LOW",
+      "timestamp": 1757384366.3133864
+    },
+    {
+      "test": "CORS Headers",
+      "status": "FAIL",
+      "details": "Missing CORS headers",
+      "criticality": "HIGH",
+      "timestamp": 1757384366.3152108
+    },
+    {
+      "test": "Security: X-Content-Type-Options",
+      "status": "FAIL",
+      "details": "Missing header",
+      "criticality": "HIGH",
+      "timestamp": 1757384366.3172405
+    },
+    {
+      "test": "Security: X-Frame-Options",
+      "status": "FAIL",
+      "details": "Missing header",
+      "criticality": "HIGH",
+      "timestamp": 1757384366.3172448
+    },
+    {
+      "test": "Security: X-XSS-Protection",
+      "status": "FAIL",
+      "details": "Missing header",
+      "criticality": "MEDIUM",
+      "timestamp": 1757384366.3172462
+    },
+    {
+      "test": "Security: Referrer-Policy",
+      "status": "FAIL",
+      "details": "Missing header",
+      "criticality": "LOW",
+      "timestamp": 1757384366.3172474
+    },
+    {
+      "test": "Security: Content-Security-Policy",
+      "status": "FAIL",
+      "details": "Missing header",
+      "criticality": "HIGH",
+      "timestamp": 1757384366.3172486
+    },
+    {
+      "test": "Rate Limiting",
+      "status": "WARNING",
+      "details": "No rate limiting detected",
+      "criticality": "MEDIUM",
+      "timestamp": 1757384366.4011915
+    },
+    {
+      "test": "404 handling",
+      "status": "PASS",
+      "details": "Correct error code: 404",
+      "criticality": "MEDIUM",
+      "timestamp": 1757384366.4028544
+    },
+    {
+      "test": "Invalid UUID handling",
+      "status": "PASS",
+      "details": "Correct error code: 400",
+      "criticality": "MEDIUM",
+      "timestamp": 1757384366.4052901
+    },
+    {
+      "test": "Upload Endpoint CORS",
+      "status": "PASS",
+      "details": "CORS preflight supported",
+      "criticality": "MEDIUM",
+      "timestamp": 1757384366.4069448
+    },
+    {
+      "test": "Upload Auth",
+      "status": "PASS",
+      "details": "Auth required for upload",
+      "criticality": "MEDIUM",
+      "timestamp": 1757384366.4120352
+    },
+    {
+      "test": "Gemini API Key",
+      "status": "FAIL",
+      "details": "GEMINI_API_KEY not set",
+      "criticality": "CRITICAL",
+      "timestamp": 1757384366.41209
+    },
+    {
+      "test": "Log Files",
+      "status": "WARNING",
+      "details": "No log files found - may be logging to stdout",
+      "criticality": "LOW",
+      "timestamp": 1757384366.4128938
+    }
+  ]
+}

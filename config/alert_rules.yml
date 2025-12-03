@@ -1,0 +1,122 @@
+groups:
+- name: application.rules
+  rules:
+  # High CPU usage
+  - alert: HighCpuUsage
+    expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 80
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High CPU usage detected on {{ $labels.instance }}"
+      description: "CPU usage is above 80% for more than 5 minutes on {{ $labels.instance }}"
+
+  # High memory usage
+  - alert: HighMemoryUsage
+    expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High memory usage detected on {{ $labels.instance }}"
+      description: "Memory usage is above 85% for more than 5 minutes on {{ $labels.instance }}"
+
+  # Service down
+  - alert: ServiceDown
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Service {{ $labels.job }} is down"
+      description: "{{ $labels.job }} service on {{ $labels.instance }} has been down for more than 1 minute"
+
+  # High response time
+  - alert: HighResponseTime
+    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High response time detected"
+      description: "95th percentile response time is above 2 seconds for more than 5 minutes"
+
+  # High error rate
+  - alert: HighErrorRate
+    expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "High error rate detected"
+      description: "HTTP 5xx error rate is above 5% for more than 5 minutes"
+
+  # Database connection issues
+  - alert: DatabaseConnectionFailure
+    expr: pg_up == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Database connection failure"
+      description: "Unable to connect to PostgreSQL database for more than 1 minute"
+
+  # Redis connection issues
+  - alert: RedisConnectionFailure
+    expr: redis_up == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Redis connection failure"
+      description: "Unable to connect to Redis for more than 1 minute"
+
+  # Disk space low
+  - alert: DiskSpaceLow
+    expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 20
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Disk space is running low"
+      description: "Disk space usage is above 80% on {{ $labels.instance }}"
+
+  # Container restart frequency
+  - alert: ContainerRestartingTooOften
+    expr: rate(container_last_seen[1m]) * 60 > 10
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Container restarting too often"
+      description: "Container {{ $labels.name }} is restarting more than 10 times per minute"
+
+  # SSL certificate expiration
+  - alert: SSLCertificateExpiry
+    expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 30
+    for: 0m
+    labels:
+      severity: warning
+    annotations:
+      summary: "SSL certificate will expire soon"
+      description: "SSL certificate for {{ $labels.instance }} will expire in less than 30 days"
+
+  # Load balancer health
+  - alert: LoadBalancerDown
+    expr: probe_success{job="blackbox"} == 0
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Load balancer health check failed"
+      description: "Load balancer health check for {{ $labels.instance }} has been failing for more than 2 minutes"
+
+  # Deployment failure detection
+  - alert: DeploymentRollbackDetected
+    expr: increase(deployment_rollbacks_total[1h]) > 0
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Deployment rollback detected"
+      description: "A deployment rollback has been detected in the last hour"

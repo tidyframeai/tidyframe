@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary Meta Tags -->
+    <title>TidyFrame - AI Name Extraction & Gender Identification Tool</title>
+    <meta name="title" content="TidyFrame - AI Name Extraction & Gender Identification Tool" />
+    <meta name="description" content="Transform messy name data into structured insights. AI-powered name extraction, gender identification, and entity detection (person, company, trust) with 95%+ accuracy. Process 100K+ names instantly." />
+    <meta name="keywords" content="name parsing, name extraction, gender identification, entity detection, CSV parser, data cleaning, name splitter, first name last name, AI parsing, bulk name processing, name data, gender detection, company identification" />
+    <meta name="author" content="TidyFrame" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://tidyframe.com" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://tidyframe.com" />
+    <meta property="og:title" content="TidyFrame - AI Name Extraction & Gender Identification Tool" />
+    <meta property="og:description" content="Transform messy name data into structured insights. Extract first/last names, identify gender, and detect entity types with 95%+ AI-powered accuracy." />
+    <meta property="og:image" content="https://tidyframe.com/logo-with-name.png" />
+    <meta property="og:site_name" content="TidyFrame" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://tidyframe.com" />
+    <meta property="twitter:title" content="TidyFrame - AI Name Extraction & Gender Identification Tool" />
+    <meta property="twitter:description" content="Transform messy name data into structured insights. Extract first/last names, identify gender, and detect entity types with 95%+ AI-powered accuracy." />
+    <meta property="twitter:image" content="https://tidyframe.com/logo-with-name.png" />
+
+    <!-- Additional SEO -->
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="TidyFrame" />
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "TidyFrame",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "description": "AI-powered name extraction, gender identification, and entity detection tool. Transform messy name data into structured insights with 95%+ accuracy.",
+      "offers": {
+        "@type": "Offer",
+        "price": "49",
+        "priceCurrency": "USD",
+        "priceValidUntil": "2026-12-31"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "ratingCount": "150"
+      },
+      "featureList": [
+        "Name extraction and splitting",
+        "Gender identification",
+        "Entity type detection (person, company, trust)",
+        "Bulk CSV/Excel processing",
+        "95%+ accuracy rate",
+        "Process 100K+ names per month"
+      ]
+    }
+    </script>
+
+    <!-- Dark mode initialization - MUST run before page renders to prevent flash -->
+    <script>
+      (function() {
+        try {
+          const theme = localStorage.getItem('theme');
+          if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

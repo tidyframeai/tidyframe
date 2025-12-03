@@ -1,0 +1,67 @@
+# Blue-Green Deployment Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deployment-config
+data:
+  # Blue-Green Deployment Settings
+  deployment_strategy: "blue-green"
+  health_check_path: "/health"
+  health_check_timeout: "30s"
+  health_check_interval: "5s"
+  health_check_retries: "3"
+  
+  # Rolling Update Settings
+  rolling_update_strategy: "RollingUpdate"
+  max_unavailable: "25%"
+  max_surge: "25%"
+  
+  # Load Balancer Configuration
+  load_balancer_algorithm: "round_robin"
+  session_affinity: "none"
+  connection_draining_timeout: "300s"
+  
+  # Monitoring Configuration
+  monitoring_enabled: "true"
+  metrics_collection_interval: "30s"
+  log_aggregation: "enabled"
+  alert_manager_webhook: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  
+  # Backup and Recovery
+  backup_retention_days: "7"
+  snapshot_before_deploy: "true"
+  rollback_timeout: "600s"
+  
+  # Environment Specific Settings
+  staging:
+    replicas: 1
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+  
+  production:
+    replicas: 2
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: deployment-secrets
+type: Opaque
+stringData:
+  digitalocean_access_token: "REPLACE_WITH_ACTUAL_TOKEN"
+  database_url: "REPLACE_WITH_ACTUAL_DATABASE_URL"
+  redis_url: "REPLACE_WITH_ACTUAL_REDIS_URL"
+  jwt_secret: "REPLACE_WITH_ACTUAL_JWT_SECRET"
+  slack_webhook_url: "REPLACE_WITH_ACTUAL_SLACK_WEBHOOK"

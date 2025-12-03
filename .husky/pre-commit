@@ -1,0 +1,38 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run tests before commit
+echo "🧪 Running tests..."
+npm run test:ci
+
+# Check if tests passed
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed. Please fix failing tests before committing."
+  exit 1
+fi
+
+# Run linting
+echo "🔍 Running ESLint..."
+npm run lint:fix
+
+# Check if linting passed
+if [ $? -ne 0 ]; then
+  echo "❌ Linting failed. Please fix linting errors before committing."
+  exit 1
+fi
+
+# Run type checking
+echo "🔧 Running TypeScript check..."
+npm run typecheck
+
+# Check if type checking passed
+if [ $? -ne 0 ]; then
+  echo "❌ TypeScript errors found. Please fix type errors before committing."
+  exit 1
+fi
+
+# Check test coverage
+echo "📊 Checking test coverage..."
+npm run test:coverage
+
+echo "✅ All checks passed! Proceeding with commit..."

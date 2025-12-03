@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Full Browser Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        input { padding: 10px; width: 300px; }
+        button { padding: 10px 20px; margin: 10px; }
+        #results { background: #f0f0f0; padding: 20px; margin-top: 20px; white-space: pre-wrap; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>TidyFrame Authentication Test</h1>
+    
+    <div>
+        <input type="password" id="password" value="Yeet@550099" placeholder="Enter password">
+        <br><br>
+        <button onclick="testPort80()">Test via Nginx (Port 80)</button>
+        <button onclick="testPort3000()">Test via Frontend (Port 3000)</button>
+        <button onclick="testPort8000()">Test Direct Backend (Port 8000)</button>
+        <button onclick="testStatus()">Check Status</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+    const log = (msg, isError = false) => {
+        const div = document.getElementById('results');
+        const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+        const className = isError ? 'error' : 'success';
+        div.innerHTML += `<span class="${className}">[${timestamp}] ${msg}</span>\n`;
+    };
+
+    async function testAuth(baseUrl, port) {
+        const password = document.getElementById('password').value;
+        log(`\n=== Testing ${port} ===`);
+        log(`Password: ${password}`);
+        log(`URL: ${baseUrl}/api/site-password/authenticate`);
+        
+        try {
+            const response = await fetch(`${baseUrl}/api/site-password/authenticate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ password }),
+                credentials: 'include'
+            });
+            
+            log(`Response Status: ${response.status}`);
+            const data = await response.json();
+            log(`Response: ${JSON.stringify(data, null, 2)}`);
+            
+            if (data.success) {
+                log('✅ Authentication successful!');
+                
+                // Now check status
+                const statusResponse = await fetch(`${baseUrl}/api/site-password/status`, {
+                    credentials: 'include'
+                });
+                const statusData = await statusResponse.json();
+                log(`Status Check: ${JSON.stringify(statusData, null, 2)}`);
+            } else {
+                log(`❌ Authentication failed: ${data.message}`, true);
+            }
+        } catch (error) {
+            log(`❌ Error: ${error.message}`, true);
+        }
+    }
+
+    function testPort80() {
+        testAuth('', 'Port 80 (Nginx)');
+    }
+
+    function testPort3000() {
+        // When on port 3000, should use backend at 8000
+        const baseUrl = window.location.port === '3000' ? 'http://localhost:8000' : '';
+        testAuth(baseUrl, 'Port 3000 (Frontend)');
+    }
+
+    function testPort8000() {
+        testAuth('http://localhost:8000', 'Port 8000 (Direct)');
+    }
+
+    async function testStatus() {
+        log('\n=== Checking Status ===');
+        
+        const urls = [
+            { url: '/api/site-password/status', name: 'Via current origin' },
+            { url: 'http://localhost:8000/api/site-password/status', name: 'Direct backend' }
+        ];
+        
+        for (const {url, name} of urls) {
+            try {
+                const response = await fetch(url, { credentials: 'include' });
+                const data = await response.json();
+                log(`${name}: ${JSON.stringify(data, null, 2)}`);
+            } catch (error) {
+                log(`${name}: Error - ${error.message}`, true);
+            }
+        }
+    }
+
+    // Auto-run test on load
+    window.onload = () => {
+        log('Test Page Loaded');
+        log(`Current URL: ${window.location.href}`);
+        log(`Current Port: ${window.location.port || '80'}`);
+    };
+    </script>
+</body>
+</html>

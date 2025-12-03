@@ -1,0 +1,36 @@
+[flake8]
+max-line-length = 120
+max-complexity = 15
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    *.egg-info,
+    .pytest_cache,
+    .mypy_cache,
+    alembic/versions,
+    app/analyze_*.py
+
+# Ignore specific error codes
+ignore = E203,W503,E712
+
+# Per-file ignores
+per-file-ignores =
+    __init__.py:F401
+    app/workers/file_processor.py:E402,F401,F541,C901
+    app/workers/email_sender.py:E501
+    app/utils/job_db.py:C901
+    app/utils/name_validation.py:C901
+    app/api/auth/router.py:C901,F541
+    app/api/files/router.py:C901,E501
+    app/core/config.py:C901
+    app/core/dependencies.py:E501
+    app/core/security.py:C901
+    app/main.py:C901
+    app/middleware/*.py:E501
+    app/services/gemini_service.py:E501,C901
+    app/services/improved_gemini_prompt.py:E501
+    app/services/stripe_service.py:F841

@@ -1,0 +1,361 @@
+name: Manual Deployment
+
+# Manual deployment workflow with full control
+# Use this for:
+# - Hotfixes that bypass CI
+# - Deploying specific commits/branches
+# - Emergency deployments
+# - Testing deployment process
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+        default: 'production'
+
+      git_ref:
+        description: 'Git ref to deploy (branch, tag, or commit SHA)'
+        required: false
+        default: 'main'
+        type: string
+
+      services:
+        description: 'Services to deploy (comma-separated)'
+        required: false
+        default: 'backend,celery-worker,celery-beat'
+        type: string
+
+      skip_backup:
+        description: 'Skip database backup (not recommended)'
+        required: false
+        type: boolean
+        default: false
+
+      skip_health_checks:
+        description: 'Skip health checks (emergency only)'
+        required: false
+        type: boolean
+        default: false
+
+      force_rebuild:
+        description: 'Force rebuild Docker images (--no-cache)'
+        required: false
+        type: boolean
+        default: true
+
+      run_migrations:
+        description: 'Run database migrations before deployment'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  validate-inputs:
+    name: Validate Deployment Inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        run: |
+          echo "🔍 Validating deployment inputs..."
+          echo ""
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Git Ref: ${{ inputs.git_ref }}"
+          echo "Services: ${{ inputs.services }}"
+          echo "Skip Backup: ${{ inputs.skip_backup }}"
+          echo "Skip Health Checks: ${{ inputs.skip_health_checks }}"
+          echo "Force Rebuild: ${{ inputs.force_rebuild }}"
+          echo "Run Migrations: ${{ inputs.run_migrations }}"
+          echo ""
+
+          # Warn about risky options
+          if [ "${{ inputs.skip_backup }}" = "true" ]; then
+            echo "⚠️  WARNING: Database backup will be skipped!"
+          fi
+
+          if [ "${{ inputs.skip_health_checks }}" = "true" ]; then
+            echo "⚠️  WARNING: Health checks will be skipped!"
+          fi
+
+          if [ "${{ inputs.environment }}" = "production" ] && [ "${{ inputs.git_ref }}" != "main" ]; then
+            echo "⚠️  WARNING: Deploying non-main branch to production!"
+            echo "    Git ref: ${{ inputs.git_ref }}"
+          fi
+
+  manual-deploy:
+    name: Manual Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: validate-inputs
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ inputs.environment == 'production' && 'https://tidyframe.com' || 'https://staging.tidyframe.com' }}
+
+    steps:
+      - name: Deployment summary
+        run: |
+          echo "🚀 ======================================"
+          echo "   Manual Deployment"
+          echo "======================================"
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Git Ref: ${{ inputs.git_ref }}"
+          echo "Services: ${{ inputs.services }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "======================================"
+
+      - name: Pre-deployment validation and backup
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.PROD_SERVER_HOST }}
+          username: ${{ secrets.PROD_SERVER_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/tidyframe
+
+            echo "📋 Pre-deployment checks..."
+
+            # Store current commit for rollback
+            CURRENT_COMMIT=$(git rev-parse HEAD)
+            echo "current_commit=$CURRENT_COMMIT" > deployment.state
+            echo "deployment_type=manual" >> deployment.state
+            echo "triggered_by=${{ github.actor }}" >> deployment.state
+            echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> deployment.state
+
+            # Validate environment file
+            if [ ! -f ".env" ]; then
+              echo "❌ ERROR: .env file not found"
+              exit 1
+            fi
+
+            # Optional: Run environment validation script
+            if [ -f "backend/scripts/validate-env.sh" ]; then
+              echo "🔍 Validating environment configuration..."
+              bash backend/scripts/validate-env.sh .env ${{ inputs.environment }} || {
+                echo "⚠️  Environment validation had warnings, continuing..."
+              }
+            fi
+
+            # Database backup (unless skipped)
+            if [ "${{ inputs.skip_backup }}" = "false" ]; then
+              echo "💾 Creating database backup..."
+              mkdir -p backups
+              BACKUP_FILE="backups/db-backup-manual-$(date +%Y%m%d-%H%M%S).sql"
+              docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U tidyframe tidyframe > "$BACKUP_FILE" 2>&1 && \
+                echo "✅ Backup created: $BACKUP_FILE" || \
+                echo "⚠️  Backup failed (continuing anyway)"
+
+              # Cleanup old backups (keep last 5 manual backups)
+              ls -t backups/db-backup-manual-*.sql 2>/dev/null | tail -n +6 | xargs -r rm
+            else
+              echo "⚠️  Skipping database backup (--skip-backup enabled)"
+            fi
+
+            echo "✅ Pre-deployment validation complete"
+
+      - name: Run database migrations
+        if: inputs.run_migrations
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.PROD_SERVER_HOST }}
+          username: ${{ secrets.PROD_SERVER_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/tidyframe
+
+            echo "🗃️  Running database migrations..."
+
+            docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head || {
+              echo "❌ Migration failed!"
+              exit 1
+            }
+
+            echo "✅ Migrations completed successfully"
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.PROD_SERVER_HOST }}
+          username: ${{ secrets.PROD_SERVER_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/tidyframe
+
+            echo "🚀 Starting manual deployment..."
+
+            # Fetch and checkout specified git ref
+            echo "📥 Fetching git ref: ${{ inputs.git_ref }}..."
+            git fetch origin
+            git checkout ${{ inputs.git_ref }}
+            git pull origin ${{ inputs.git_ref }} || git reset --hard origin/${{ inputs.git_ref }} || git reset --hard ${{ inputs.git_ref }}
+
+            echo "📦 Deploying version: $(git describe --tags --always)"
+            echo "📝 Commit: $(git log -1 --oneline)"
+
+            # Convert comma-separated services to space-separated
+            SERVICES="${{ inputs.services }}"
+            SERVICES=$(echo "$SERVICES" | tr ',' ' ')
+
+            echo "🎯 Services to deploy: $SERVICES"
+
+            # Set build cache option
+            if [ "${{ inputs.force_rebuild }}" = "true" ]; then
+              export BUILD_NO_CACHE=true
+              echo "🔨 Force rebuild enabled (--no-cache)"
+            else
+              export BUILD_NO_CACHE=false
+              echo "🔨 Using Docker cache for faster builds"
+            fi
+
+            # Run zero-downtime deployment
+            bash backend/scripts/zero-downtime-deploy.sh docker-compose.prod.yml $SERVICES
+
+      - name: Wait for services to stabilize
+        run: sleep 30
+
+      - name: Health checks
+        if: ${{ !inputs.skip_health_checks }}
+        run: |
+          echo "🏥 Running health checks..."
+
+          MAX_ATTEMPTS=10
+          ATTEMPT=0
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS..."
+
+            # Check main health endpoint
+            if curl -f -s -m 10 https://tidyframe.com/health > /dev/null 2>&1; then
+              echo "✅ Health endpoint responsive"
+
+              # Check API
+              API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://tidyframe.com/api/health 2>/dev/null)
+              if [ "$API_STATUS" = "200" ] || [ "$API_STATUS" = "401" ]; then
+                echo "✅ API responding (status: $API_STATUS)"
+
+                # Check frontend
+                if curl -f -s -m 10 https://tidyframe.com/ | grep -q "tidyframe\|TidyFrame\|root"; then
+                  echo "✅ Frontend loads correctly"
+                  echo "🎉 All health checks passed!"
+                  exit 0
+                fi
+              fi
+            fi
+
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "⏳ Waiting 10s before retry..."
+              sleep 10
+            fi
+          done
+
+          echo "❌ Health checks failed after $MAX_ATTEMPTS attempts"
+          exit 1
+
+      - name: Verify container health
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.PROD_SERVER_HOST }}
+          username: ${{ secrets.PROD_SERVER_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/tidyframe
+
+            echo "🐳 Checking container status..."
+            docker compose -f docker-compose.prod.yml ps
+
+            # Parse services from input
+            SERVICES="${{ inputs.services }}"
+            SERVICES=$(echo "$SERVICES" | tr ',' ' ')
+
+            # Check each deployed service
+            UNHEALTHY=""
+            for service in $SERVICES; do
+              STATUS=$(docker compose -f docker-compose.prod.yml ps $service --format json | jq -r '.[0].State // "unknown"' 2>/dev/null || echo "unknown")
+              if [ "$STATUS" = "running" ]; then
+                echo "✅ $service is running"
+              else
+                echo "❌ $service is not running (status: $STATUS)"
+                UNHEALTHY="$UNHEALTHY $service"
+              fi
+            done
+
+            if [ -n "$UNHEALTHY" ]; then
+              echo "⚠️  Warning: Some services are unhealthy:$UNHEALTHY"
+              echo "Check logs with: docker compose -f docker-compose.prod.yml logs $UNHEALTHY"
+              exit 1
+            fi
+
+      - name: Deployment success notification
+        if: success()
+        run: |
+          echo "🎉 ======================================"
+          echo "🚀 Manual deployment successful!"
+          echo "======================================"
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Git Ref: ${{ inputs.git_ref }}"
+          echo "Services: ${{ inputs.services }}"
+          echo "Deployed by: ${{ github.actor }}"
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "URL: https://tidyframe.com"
+          echo "======================================"
+
+  rollback-on-failure:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: manual-deploy
+    if: failure()
+
+    steps:
+      - name: Automated rollback
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.PROD_SERVER_HOST }}
+          username: ${{ secrets.PROD_SERVER_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/tidyframe
+
+            echo "🔄 ======================================"
+            echo "⚠️  ROLLBACK INITIATED"
+            echo "======================================"
+
+            # Read previous commit from deployment state
+            if [ -f "deployment.state" ]; then
+              PREVIOUS_COMMIT=$(grep "current_commit=" deployment.state | cut -d= -f2)
+              echo "📌 Rolling back to commit: $PREVIOUS_COMMIT"
+            else
+              PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
+              echo "📌 No deployment state found, using previous commit: $PREVIOUS_COMMIT"
+            fi
+
+            # Restore previous code
+            git fetch origin
+            git reset --hard $PREVIOUS_COMMIT
+
+            # Rebuild and restart
+            SERVICES="${{ inputs.services }}"
+            SERVICES=$(echo "$SERVICES" | tr ',' ' ')
+
+            echo "🔨 Rebuilding previous version..."
+            bash backend/scripts/zero-downtime-deploy.sh docker-compose.prod.yml $SERVICES
+
+            echo "======================================"
+            echo "✅ Rollback completed"
+            echo "======================================"
+
+      - name: Rollback notification
+        run: |
+          echo "⚠️  ======================================"
+          echo "🔄 DEPLOYMENT FAILED - ROLLBACK EXECUTED"
+          echo "======================================"
+          echo "Manual deployment to ${{ inputs.environment }} failed"
+          echo "System rolled back to previous version"
+          echo "Initiated by: ${{ github.actor }}"
+          echo "Failed ref: ${{ inputs.git_ref }}"
+          echo "======================================"
+          echo "🔍 Check logs at: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
