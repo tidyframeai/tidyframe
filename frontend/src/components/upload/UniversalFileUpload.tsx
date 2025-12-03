@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDropzone, FileRejection } from 'react-dropzone';
 import { useAuth } from '@/contexts/AuthContext';
 import { processingService } from '@/services/processingService';
+import { billingService } from '@/services/billingService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -10,6 +11,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Upload,
   FileSpreadsheet,
@@ -21,7 +30,9 @@ import {
   Crown,
   Zap,
   Building,
-  Settings
+  Settings,
+  DollarSign,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateSampleCSV, downloadCSVFile, validateCSVHeaders } from '@/utils/csvUtils';
@@ -51,6 +62,16 @@ export default function UniversalFileUpload({
   const [error, setError] = useState('');
   const [columnName, setColumnName] = useState('');
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [overageWarning, setOverageWarning] = useState<{
+    show: boolean;
+    estimate?: {
+      overage_cost: number;
+      overage_amount: number;
+      new_total: number;
+      monthly_limit: number;
+      warning_message?: string;
+    };
+  }>({ show: false });
 
   // Prevent browser from navigating when files dropped outside dropzone
   // This is critical UX - dropping files on document navigates away and loses all progress
@@ -152,16 +173,27 @@ export default function UniversalFileUpload({
     setError('');
   };
 
-  const handleUpload = async () => {
-    if (files.length === 0) {
-      setError('Please select a file to upload');
-      return;
-    }
+  // Helper to estimate row count from file
+  const estimateRowCount = async (file: File): Promise<number> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        const lines = text.split('\n').filter(line => line.trim() !== '');
+        // Subtract 1 for header row
+        resolve(Math.max(0, lines.length - 1));
+      };
+      reader.onerror = () => resolve(0);
+      reader.readAsText(file);
+    });
+  };
 
+  const proceedWithUpload = async () => {
     const file = files[0];
     setUploading(true);
     setUploadProgress(0);
     setError('');
+    setOverageWarning({ show: false }); // Close dialog
 
     try {
       const response = await processingService.uploadFile(
@@ -178,18 +210,15 @@ export default function UniversalFileUpload({
       if (onUploadSuccess) {
         onUploadSuccess(response.jobId);
       } else if (user) {
-        // Navigate authenticated users to dashboard
         navigate(`/dashboard/processing?jobId=${response.jobId}`);
       } else {
-        // Navigate anonymous users to public status page
         navigate(`/status?jobId=${response.jobId}`);
       }
     } catch (err: unknown) {
       const error = err as Error & { response?: { data?: { message?: string; detail?: string }; status?: number } };
       const errorMsg = error.response?.data?.message || error.response?.data?.detail || 'Upload failed. Please try again.';
       setError(errorMsg);
-      
-      // Handle quota exceeded specifically
+
       if (error.response?.status === 403) {
         if (!user) {
           toast.error('Anonymous limit reached. Sign up for more capacity!');
@@ -201,6 +230,44 @@ export default function UniversalFileUpload({
       setUploading(false);
       setUploadProgress(0);
     }
+  };
+
+  const handleUpload = async () => {
+    if (files.length === 0) {
+      setError('Please select a file to upload');
+      return;
+    }
+
+    const file = files[0];
+
+    // For authenticated STANDARD users, check for overage
+    if (user && user.plan === 'STANDARD') {
+      try {
+        const rowCount = await estimateRowCount(file);
+        const estimate = await billingService.estimateOverage(rowCount);
+
+        if (estimate.will_trigger_overage) {
+          // Show warning dialog
+          setOverageWarning({
+            show: true,
+            estimate: {
+              overage_cost: estimate.overage_cost,
+              overage_amount: estimate.overage_amount,
+              new_total: estimate.new_total,
+              monthly_limit: estimate.monthly_limit,
+              warning_message: estimate.warning_message
+            }
+          });
+          return; // Don't proceed yet, wait for user confirmation
+        }
+      } catch (err) {
+        console.error('Failed to estimate overage:', err);
+        // If estimate fails, proceed anyway (don't block upload)
+      }
+    }
+
+    // If no overage or user not STANDARD, proceed immediately
+    await proceedWithUpload();
   };
 
   const formatFileSize = (bytes: number) => {
@@ -562,6 +629,79 @@ export default function UniversalFileUpload({
           )}
         </CardContent>
       </Card>
+
+      {/* Overage Warning Dialog */}
+      <Dialog open={overageWarning.show} onOpenChange={(open) => setOverageWarning({ ...overageWarning, show: open })}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex justify-center mb-4">
+              <div className="h-16 w-16 rounded-full bg-warning/10 flex items-center justify-center">
+                <AlertTriangle className="h-8 w-8 text-warning" />
+              </div>
+            </div>
+            <DialogTitle className="text-center text-2xl">
+              Overage Charges Will Apply
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              {overageWarning.estimate?.warning_message || 'This upload will exceed your monthly limit.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-4">
+            <div className="flex items-start space-x-3 p-3 rounded-lg bg-muted/50">
+              <DollarSign className="h-5 w-5 text-warning mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Overage Cost</p>
+                <p className="text-2xl font-bold text-warning">
+                  ${overageWarning.estimate?.overage_cost.toFixed(2) || '0.00'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {overageWarning.estimate?.overage_amount.toLocaleString() || 0} parses over limit at $0.01 each
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-3 p-3 rounded-lg bg-muted/50">
+              <Info className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Usage Summary</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  New Total: {overageWarning.estimate?.new_total.toLocaleString() || 0} / {overageWarning.estimate?.monthly_limit.toLocaleString() || 0} parses
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  You'll be charged at the end of your billing cycle
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="sm:flex-col sm:space-x-0 space-y-2">
+            <Button
+              className="w-full"
+              variant="default"
+              onClick={proceedWithUpload}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <>
+                  <Upload className="mr-2 h-4 w-4 animate-pulse" />
+                  Processing...
+                </>
+              ) : (
+                'Continue with Upload'
+              )}
+            </Button>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => setOverageWarning({ show: false })}
+              disabled={uploading}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

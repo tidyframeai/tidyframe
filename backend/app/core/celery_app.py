@@ -72,6 +72,10 @@ celery_app.conf.update(
             "task": "app.workers.webhook_retry.sync_subscription_status",
             "schedule": 60.0 * 60.0,  # Every hour - sync subscription status from Stripe
         },
+        "reconcile-stripe-usage": {
+            "task": "app.workers.cleanup.reconcile_stripe_usage",
+            "schedule": 60.0 * 60.0 * 24.0,  # Daily - CRITICAL revenue protection
+        },
     },
 )
 

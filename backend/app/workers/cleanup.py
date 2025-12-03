@@ -471,3 +471,102 @@ def cleanup_processed_files_10min() -> Dict[str, int]:
 
     logger.info("cleanup_processed_files_10min_completed", **result)
     return result
+
+
+@celery_app.task
+def reconcile_stripe_usage() -> Dict[str, int]:
+    """
+    Reconcile local database usage counts with Stripe Billing Meter
+    CRITICAL for revenue protection - runs daily to catch any drift
+
+    Scenarios this catches:
+    1. Stripe API failures during report_usage()
+    2. Network failures preventing usage reporting
+    3. Manual database edits that bypassed Stripe
+    4. Race conditions in concurrent usage updates
+
+    Runs: Daily at 3 AM UTC
+    """
+    logger.info("reconcile_stripe_usage_started")
+
+    result = {"users_checked": 0, "discrepancies_found": 0, "corrections_made": 0, "errors": 0}
+
+    try:
+        from app.services.stripe_service import StripeService
+        stripe_service = StripeService()
+
+        with SessionLocal() as db:
+            # Get all users with active Stripe subscriptions
+            active_subscribers = (
+                db.execute(
+                    select(User).where(
+                        and_(
+                            User.stripe_subscription_id.isnot(None),
+                            User.stripe_customer_id.isnot(None)
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            for user in active_subscribers:
+                try:
+                    result["users_checked"] += 1
+
+                    # Get usage from Stripe
+                    stripe_usage_data = stripe_service.stripe.billing.Meter.list_event_summaries(
+                        stripe_service.meter_id,
+                        customer=user.stripe_customer_id,
+                        start_time=int(user.month_reset_date.timestamp()),
+                        end_time=int(datetime.now(timezone.utc).timestamp())
+                    )
+
+                    # Aggregate Stripe usage
+                    stripe_total = 0
+                    for summary in stripe_usage_data.data:
+                        stripe_total += summary.get("aggregated_value", 0)
+
+                    # Compare with local database
+                    local_total = user.parses_this_month
+
+                    if abs(stripe_total - local_total) > 5:  # Allow 5 parse tolerance for rounding
+                        result["discrepancies_found"] += 1
+
+                        logger.warning(
+                            "usage_discrepancy_detected",
+                            user_id=str(user.id),
+                            user_email=user.email,
+                            local_count=local_total,
+                            stripe_count=stripe_total,
+                            difference=stripe_total - local_total
+                        )
+
+                        # Trust Stripe as source of truth (it's what gets billed)
+                        # Update local database to match
+                        user.parses_this_month = stripe_total
+                        result["corrections_made"] += 1
+
+                        logger.info(
+                            "usage_corrected_to_stripe",
+                            user_id=str(user.id),
+                            old_count=local_total,
+                            new_count=stripe_total
+                        )
+
+                except Exception as e:
+                    logger.error(
+                        "reconciliation_failed_for_user",
+                        user_id=str(user.id),
+                        error=str(e)
+                    )
+                    result["errors"] += 1
+
+            db.commit()
+
+    except Exception as e:
+        logger.error("reconcile_stripe_usage_failed", error=str(e))
+        result["errors"] += 1
+
+    logger.info("reconcile_stripe_usage_completed", **result)
+    return result

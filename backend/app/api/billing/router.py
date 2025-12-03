@@ -679,6 +679,124 @@ async def get_billing_config():
     )
 
 
+class OverageEstimateRequest(BaseModel):
+    row_count: int  # Number of rows in the upload
+
+
+class OverageEstimateResponse(BaseModel):
+    current_usage: int
+    monthly_limit: int
+    upload_count: int
+    new_total: int
+    will_trigger_overage: bool
+    overage_amount: int
+    overage_cost: float  # In dollars
+    total_cost_this_period: float  # In dollars
+    warning_message: Optional[str] = None
+
+
+@router.post("/estimate-overage", response_model=OverageEstimateResponse)
+async def estimate_overage(
+    estimate_data: OverageEstimateRequest,
+    current_user: User = Depends(require_auth),
+):
+    """
+    Calculate overage estimate for upcoming upload
+    CRITICAL for user experience - shows cost before they commit
+    """
+
+    current_usage = current_user.parses_this_month
+    monthly_limit = current_user.monthly_limit
+    upload_count = estimate_data.row_count
+    new_total = current_usage + upload_count
+
+    # Admin users never hit overage
+    if current_user.is_admin:
+        return OverageEstimateResponse(
+            current_usage=current_usage,
+            monthly_limit=monthly_limit,
+            upload_count=upload_count,
+            new_total=new_total,
+            will_trigger_overage=False,
+            overage_amount=0,
+            overage_cost=0.0,
+            total_cost_this_period=0.0,
+        )
+
+    # Enterprise users have unlimited parsing (no overage)
+    if current_user.plan == PlanType.ENTERPRISE:
+        return OverageEstimateResponse(
+            current_usage=current_usage,
+            monthly_limit=monthly_limit,
+            upload_count=upload_count,
+            new_total=new_total,
+            will_trigger_overage=False,
+            overage_amount=0,
+            overage_cost=0.0,
+            total_cost_this_period=0.0,
+        )
+
+    # Standard users: calculate overage
+    will_trigger = new_total > monthly_limit
+    overage_amount = max(0, new_total - monthly_limit)
+    overage_cost = overage_amount * settings.OVERAGE_PRICE_PER_UNIT
+
+    # Get current period base cost from subscription
+    base_cost = 0.0
+    if current_user.stripe_subscription_id:
+        try:
+            stripe_service = StripeService()
+            subscription = await stripe_service.get_subscription(
+                current_user.stripe_subscription_id
+            )
+            if subscription.get("items"):
+                price = subscription["items"][0].get("price", {})
+                base_cost = price.get("unit_amount", 0) / 100.0  # Convert cents to dollars
+        except Exception:
+            # Fallback to default
+            base_cost = settings.STANDARD_MONTHLY_PRICE
+
+    total_cost = base_cost + overage_cost
+
+    # Generate warning message
+    warning_message = None
+    if will_trigger:
+        if current_usage < monthly_limit:
+            # First time hitting overage with this upload
+            warning_message = (
+                f"This upload will exceed your monthly limit by {overage_amount:,} parses. "
+                f"You'll be charged ${overage_cost:.2f} (${settings.OVERAGE_PRICE_PER_UNIT:.2f}/parse) "
+                f"at the end of your billing cycle."
+            )
+        else:
+            # Already in overage
+            warning_message = (
+                f"You're currently over your limit. This upload will add ${overage_cost:.2f} "
+                f"to your overage charges ({upload_count:,} parses × ${settings.OVERAGE_PRICE_PER_UNIT:.2f})."
+            )
+
+    logger.info(
+        "overage_estimate_calculated",
+        user_id=current_user.id,
+        current_usage=current_usage,
+        upload_count=upload_count,
+        will_trigger_overage=will_trigger,
+        overage_cost=overage_cost,
+    )
+
+    return OverageEstimateResponse(
+        current_usage=current_usage,
+        monthly_limit=monthly_limit,
+        upload_count=upload_count,
+        new_total=new_total,
+        will_trigger_overage=will_trigger,
+        overage_amount=overage_amount,
+        overage_cost=overage_cost,
+        total_cost_this_period=total_cost,
+        warning_message=warning_message,
+    )
+
+
 @router.post("/stripe/webhook")
 async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """Handle main Stripe webhooks"""

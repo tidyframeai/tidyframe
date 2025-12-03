@@ -174,6 +174,21 @@ class BillingService {
       features: planFeatures
     };
   }
+
+  // Estimate overage for upcoming upload
+  async estimateOverage(rowCount: number): Promise<{
+    current_usage: number;
+    monthly_limit: number;
+    upload_count: number;
+    new_total: number;
+    will_trigger_overage: boolean;
+    overage_amount: number;
+    overage_cost: number;
+    total_cost_this_period: number;
+    warning_message?: string;
+  }> {
+    return await apiService.post('/api/billing/estimate-overage', { row_count: rowCount });
+  }
 }
 
 export const billingService = new BillingService();
