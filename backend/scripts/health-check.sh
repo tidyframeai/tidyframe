@@ -23,12 +23,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 HEALTH_LOG="$PROJECT_ROOT/logs/health-check-$(date +%Y%m%d_%H%M%S).log"
 ALERT_LOG="$PROJECT_ROOT/logs/alerts.log"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Load shared logging library (provides colors and base log function)
+source "$SCRIPT_DIR/lib/logging.sh"
 
 # Default configuration - can be overridden via environment variables
 DOMAIN=${DOMAIN:-"tidyframe.com"}
@@ -47,7 +43,7 @@ FAILED_CHECKS=0
 HEALTH_SCORE=0
 
 # =============================================================================
-# Utility Functions
+# Utility Functions (Override shared logging to add file output and counters)
 # =============================================================================
 
 log() {

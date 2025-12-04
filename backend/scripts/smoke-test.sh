@@ -7,11 +7,9 @@
 
 set -e
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Load shared logging library (provides color variables)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/logging.sh"
 
 DOMAIN=${1:-tidyframe.com}
 COMPOSE_FILE=${2:-docker-compose.prod.yml}

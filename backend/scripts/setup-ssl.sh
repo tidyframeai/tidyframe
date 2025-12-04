@@ -9,24 +9,9 @@ DOMAIN=$1
 EMAIL=$2
 ENV=${3:-production}
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $*"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $*"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $*"
-}
+# Load shared logging library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/logging.sh"
 
 if [ -z "$DOMAIN" ] || [ -z "$EMAIL" ]; then
     log_error "Usage: $0 <domain> <email> [environment]"
@@ -75,11 +60,13 @@ docker compose -f docker-compose.prod.yml run --rm --entrypoint 'certbot' certbo
 if [ -d "certbot/conf/live/$DOMAIN" ]; then
     log_success "SSL certificates generated successfully"
 
-    # Create SSL-enabled nginx configuration
-    log_info "Creating SSL-enabled nginx configuration..."
+    # Enable unified SSL configuration
+    log_info "Enabling unified SSL configuration..."
 
-    # Create a new SSL configuration that includes both HTTP and HTTPS
-    cat > nginx/conf.d/tidyframe-ssl.conf << EOF
+    # Check if tidyframe-production-ssl.conf exists, if not create it
+    if [ ! -f "nginx/conf.d/tidyframe-production-ssl.conf" ]; then
+        log_info "Creating tidyframe-production-ssl.conf from template..."
+        cat > nginx/conf.d/tidyframe-production-ssl.conf << EOF
 upstream backend_servers {
     server backend:8000;
 }
@@ -103,8 +90,9 @@ server {
 
 # HTTPS server
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
     server_name $DOMAIN www.$DOMAIN;
 
     # SSL certificates
@@ -187,10 +175,15 @@ server {
     }
 }
 EOF
+    fi
 
-    # Disable the non-SSL production config and enable SSL config
-    log_info "Enabling SSL configuration..."
+    # Disable conflicting configurations
+    log_info "Disabling conflicting nginx configurations..."
     mv nginx/conf.d/tidyframe-production.conf nginx/conf.d/tidyframe-production.conf.disabled 2>/dev/null || true
+    mv nginx/conf.d/tidyframe-ssl.conf nginx/conf.d/tidyframe-ssl.conf.disabled 2>/dev/null || true
+    mv nginx/conf.d/tidyframe-local.conf nginx/conf.d/tidyframe-local.conf.disabled 2>/dev/null || true
+
+    log_success "Unified SSL configuration enabled (tidyframe-production-ssl.conf)"
 
     # Restart nginx with SSL configuration
     log_info "Restarting nginx with SSL enabled..."

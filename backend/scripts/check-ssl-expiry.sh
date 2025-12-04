@@ -1,27 +1,30 @@
 #!/bin/bash
 
 # =============================================================================
-# SSL Certificate Expiry Monitor
+# SSL Certificate Expiry Monitor (Docker-Compatible)
 # =============================================================================
 # Checks SSL certificate expiration and alerts if renewal is needed
-# Intended to run daily via cron
+# Intended to run daily via cron on Docker Compose production environment
 # =============================================================================
 
 set -euo pipefail
 
+# Load shared logging library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/logging.sh"
+
 # Configuration
+PROJECT_ROOT="${PROJECT_ROOT:-/opt/tidyframe}"
 DOMAIN="${DOMAIN:-tidyframe.com}"
-CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+CERT_PATH="$PROJECT_ROOT/certbot/conf/live/$DOMAIN/fullchain.pem"
 WARNING_DAYS=30  # Alert if cert expires within this many days
 ALERT_EMAIL="${ADMIN_EMAIL:-tidyframeai@gmail.com}"
-LOG_FILE="/var/log/ssl-expiry-check.log"
+LOG_FILE="$PROJECT_ROOT/logs/ssl-expiry-check.log"
 
-# Colors for output
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-GREEN='\033[0;32m'
-NC='\033[0m'
+# Create logs directory if it doesn't exist
+mkdir -p "$(dirname "$LOG_FILE")"
 
+# Override log function to add file output
 log() {
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     echo -e "[$timestamp] $*" | tee -a "$LOG_FILE"
@@ -74,13 +77,18 @@ elif [ $DAYS_UNTIL_EXPIRY -lt $WARNING_DAYS ]; then
     # Log to system log
     logger -t ssl-expiry -p user.warning "SSL certificate for $DOMAIN expires in $DAYS_UNTIL_EXPIRY days"
 
-    # Check certbot auto-renewal status
-    log "Checking certbot auto-renewal status..."
-    if systemctl is-active --quiet certbot.timer; then
-        log "${GREEN}OK: Certbot auto-renewal timer is active${NC}"
+    # Check certbot auto-renewal status (Docker container)
+    log "Checking certbot container status..."
+    if docker ps --format '{{.Names}}' | grep -q 'tidyframe.*certbot'; then
+        CERTBOT_STATUS=$(docker inspect --format='{{.State.Status}}' $(docker ps --format '{{.Names}}' | grep 'tidyframe.*certbot') 2>/dev/null || echo "unknown")
+        if [ "$CERTBOT_STATUS" = "running" ]; then
+            log "${GREEN}OK: Certbot container is running for auto-renewal${NC}"
+        else
+            log "${YELLOW}WARNING: Certbot container exists but status: $CERTBOT_STATUS${NC}"
+        fi
     else
-        log "${RED}ERROR: Certbot auto-renewal timer is NOT active!${NC}"
-        logger -t ssl-expiry -p user.err "Certbot auto-renewal timer is not active"
+        log "${RED}ERROR: Certbot container is NOT running!${NC}"
+        logger -t ssl-expiry -p user.err "Certbot container is not running"
     fi
 
     exit 1
@@ -88,10 +96,12 @@ elif [ $DAYS_UNTIL_EXPIRY -lt $WARNING_DAYS ]; then
 else
     log "${GREEN}OK: SSL certificate is valid for $DAYS_UNTIL_EXPIRY days${NC}"
 
-    # Verify certbot timer is still active
-    if ! systemctl is-active --quiet certbot.timer; then
-        log "${YELLOW}WARNING: Certbot auto-renewal timer is not active${NC}"
-        logger -t ssl-expiry -p user.warning "Certbot auto-renewal timer is not active"
+    # Verify certbot container is still running
+    if ! docker ps --format '{{.Names}}' | grep -q 'tidyframe.*certbot'; then
+        log "${YELLOW}WARNING: Certbot container is not running${NC}"
+        logger -t ssl-expiry -p user.warning "Certbot container is not running"
+    else
+        log "${GREEN}OK: Certbot container is running${NC}"
     fi
 
     exit 0

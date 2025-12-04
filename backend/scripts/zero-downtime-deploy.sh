@@ -8,11 +8,9 @@
 
 set -e
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Load shared logging library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/logging.sh"
 
 # ================================================================
 # Configuration
@@ -33,7 +31,7 @@ HEALTH_CHECK_INTERVAL="${HEALTH_CHECK_INTERVAL:-10}"
 BUILD_NO_CACHE="${BUILD_NO_CACHE:-true}"
 
 # ================================================================
-# Helper Functions
+# Helper Functions (Override for emoji style)
 # ================================================================
 
 log_info() {
