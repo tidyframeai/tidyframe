@@ -41,6 +41,8 @@ class SitePasswordMiddleware(BaseHTTPMiddleware):
             "/api/site-password/check",
             "/api/site-password/authenticate",
             "/favicon.ico",
+            "/api/stripe/webhook",  # Stripe subscription webhooks
+            "/api/stripe/meter/webhook",  # Stripe billing meter webhooks
         }
 
         # Allow static assets only (needed for password form to render)

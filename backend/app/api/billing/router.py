@@ -1045,13 +1045,42 @@ async def handle_subscription_created(
 
     if user:
         user.stripe_subscription_id = subscription_id
-        # Plan will be updated based on price ID in subscription.updated
+
+        # Set plan immediately based on price ID (don't rely on subscription.updated webhook)
+        items = subscription_data.get("items", {}).get("data", [])
+        if items:
+            price_id = items[0].get("price", {}).get("id")
+
+            if price_id in [
+                settings.STRIPE_STANDARD_MONTHLY_PRICE_ID,
+                settings.STRIPE_STANDARD_YEARLY_PRICE_ID,
+            ]:
+                user.plan = PlanType.STANDARD
+                logger.info(
+                    "subscription_created_upgraded_to_standard",
+                    user_id=user.id,
+                    subscription_id=subscription_id,
+                    price_id=price_id,
+                )
+            elif price_id in [
+                settings.STRIPE_ENTERPRISE_MONTHLY_PRICE_ID,
+                settings.STRIPE_ENTERPRISE_YEARLY_PRICE_ID,
+            ]:
+                user.plan = PlanType.ENTERPRISE
+                logger.info(
+                    "subscription_created_upgraded_to_enterprise",
+                    user_id=user.id,
+                    subscription_id=subscription_id,
+                    price_id=price_id,
+                )
+
         await db.commit()
 
         logger.info(
             "subscription_created_processed",
             user_id=user.id,
             subscription_id=subscription_id,
+            plan=user.plan.value,
         )
 
     return {"processed": True}
