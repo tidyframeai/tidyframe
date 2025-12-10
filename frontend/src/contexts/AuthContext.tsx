@@ -33,27 +33,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const checkSubscriptionStatus = useCallback(async (): Promise<boolean> => {
     if (!user) return false;
 
-    // PRIMARY CHECK: User's plan is the source of truth
-    // The database is updated by Stripe webhook BEFORE the user needs access
-    // This ensures payment status persists correctly across login/logout
-    const hasPaidPlan = user.plan === 'STANDARD' || user.plan === 'ENTERPRISE';
-
-    if (hasPaidPlan) {
-      setHasActiveSubscription(true);
-      logger.debug('User has paid plan, granting access', { plan: user.plan });
-      return true;
-    }
-
-    // SECONDARY CHECK: For FREE users, optionally verify via Stripe API
-    // This catches edge cases where user might have active subscription but plan not updated yet
     try {
+      // CRITICAL FIX: Always fetch fresh user data from database to detect plan changes
+      // This catches cases where JWT token is stale after webhook updates plan
+      const freshUserData = await authService.getCurrentUser();
+
+      // Detect plan mismatch between JWT token and database
+      if (freshUserData.plan !== user.plan) {
+        logger.info('Plan mismatch detected, refreshing user context', {
+          jwtPlan: user.plan,
+          dbPlan: freshUserData.plan
+        });
+
+        // Update user in context with fresh data
+        const hasPaidPlan = freshUserData.plan === 'STANDARD' || freshUserData.plan === 'ENTERPRISE';
+        setHasActiveSubscription(hasPaidPlan);
+        setUser(freshUserData);
+
+        return hasPaidPlan;
+      }
+
+      // PRIMARY CHECK: User's plan is the source of truth
+      // The database is updated by Stripe webhook BEFORE the user needs access
+      const hasPaidPlan = freshUserData.plan === 'STANDARD' || freshUserData.plan === 'ENTERPRISE';
+
+      if (hasPaidPlan) {
+        setHasActiveSubscription(true);
+        logger.debug('User has paid plan, granting access', { plan: freshUserData.plan });
+        return true;
+      }
+
+      // SECONDARY CHECK: For FREE users, optionally verify via Stripe API
+      // This catches edge cases where user might have active subscription but plan not updated yet
       const isActive = await billingService.hasActiveSubscription();
       setHasActiveSubscription(isActive);
       return isActive;
     } catch (error) {
       logger.error('Error checking subscription status:', error);
-      setHasActiveSubscription(false);
-      return false;
+
+      // Fallback to JWT token data if API call fails
+      const hasPaidPlan = user.plan === 'STANDARD' || user.plan === 'ENTERPRISE';
+      setHasActiveSubscription(hasPaidPlan);
+      return hasPaidPlan;
     }
   }, [user]);
 

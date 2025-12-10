@@ -14,7 +14,7 @@ from app.core.dependencies import require_auth
 from app.core.security import generate_api_key
 from app.models.api_key import APIKey
 from app.models.user import User
-from app.schemas.auth import UserResponse
+from app.api.auth.schemas import UserResponse
 
 logger = structlog.get_logger()
 

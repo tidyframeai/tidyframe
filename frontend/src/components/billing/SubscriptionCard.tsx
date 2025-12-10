@@ -120,8 +120,12 @@ export function SubscriptionCard({
     }
   };
 
+  // CRITICAL FIX: Determine plan from backend API response (subscription.plan), not JWT token (user.plan)
+  // Backend subscription endpoint always returns plan from database, which is the source of truth
+  const effectivePlan = subscription?.plan?.toUpperCase() || user?.plan?.toUpperCase() || 'FREE';
+
   // Show admin status for enterprise users
-  if (user?.plan === 'ENTERPRISE' && !subscription) {
+  if (effectivePlan === 'ENTERPRISE' && !subscription?.id) {
     return (
       <Card className="border-warning/20">
         <CardHeader>
@@ -156,8 +160,8 @@ export function SubscriptionCard({
     );
   }
 
-  // Show free tier status
-  if (!subscription || !subscription.id) {
+  // Show free tier status - check effective plan from backend API, not just subscription ID
+  if (effectivePlan === 'FREE' && (!subscription || !subscription.id)) {
     return (
       <Card>
         <CardHeader>
@@ -195,7 +199,8 @@ export function SubscriptionCard({
     );
   }
 
-  const planDetails = getPlanDetails(subscription.plan);
+  // Use effective plan from backend API for plan details (source of truth)
+  const planDetails = getPlanDetails(effectivePlan);
 
   return (
     <Card>
@@ -210,9 +215,9 @@ export function SubscriptionCard({
               {planDetails.amount ? `${formatCurrency(planDetails.amount, planDetails.currency)} / ${planDetails.interval}` : 'Custom pricing'}
             </CardDescription>
           </div>
-          <Badge className={getStatusColor(subscription.status || 'active')}>
-            {getStatusIcon(subscription.status || 'active')}
-            {subscription.status ? subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1) : 'Active'}
+          <Badge className={getStatusColor(subscription?.status || 'active')}>
+            {getStatusIcon(subscription?.status || 'active')}
+            {subscription?.status ? subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1) : 'Active'}
           </Badge>
         </div>
       </CardHeader>
@@ -253,7 +258,7 @@ export function SubscriptionCard({
         )}
 
         {/* Billing Period */}
-        {subscription.current_period_start && subscription.current_period_end && (
+        {subscription?.current_period_start && subscription?.current_period_end && (
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Current period</span>
             <span className="flex items-center gap-1">
@@ -264,7 +269,7 @@ export function SubscriptionCard({
         )}
 
         {/* Cancellation Notice */}
-        {subscription.cancel_at_period_end && subscription.current_period_end && (
+        {subscription?.cancel_at_period_end && subscription?.current_period_end && (
           <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/20">
             <AlertTriangle className="h-4 w-4 text-warning" />
             <div className="text-sm">
@@ -296,7 +301,7 @@ export function SubscriptionCard({
           Manage Billing
         </Button>
 
-        {!subscription.cancel_at_period_end && (
+        {!subscription?.cancel_at_period_end && (
           <Button
             variant="destructive"
             size="sm"
@@ -307,7 +312,7 @@ export function SubscriptionCard({
           </Button>
         )}
 
-        {subscription.cancel_at_period_end && (
+        {subscription?.cancel_at_period_end && (
           <Button
             variant="default"
             onClick={onUpgrade}

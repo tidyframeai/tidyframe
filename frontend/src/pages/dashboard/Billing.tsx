@@ -29,7 +29,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function Billing() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [usage, setUsage] = useState<UsageStats | null>(null);
@@ -39,12 +39,23 @@ export default function Billing() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   useEffect(() => {
-    loadBillingData();
-    
+    // CRITICAL FIX: Refresh user data from API to get latest plan status from database
+    // This ensures we don't rely on stale JWT token data after payment/plan changes
+    const initializeBilling = async () => {
+      try {
+        await refreshUser();
+      } catch (error) {
+        logger.error('Failed to refresh user data on billing page load:', error);
+      }
+      loadBillingData();
+    };
+
+    initializeBilling();
+
     // Check for success/cancel params from Stripe redirect
     const success = searchParams.get('success');
     const canceled = searchParams.get('canceled');
-    
+
     if (success === 'true') {
       toast.success('Subscription created successfully!');
       setSearchParams({}, { replace: true }); // Clear params
@@ -52,7 +63,7 @@ export default function Billing() {
       toast.error('Payment was cancelled.');
       setSearchParams({}, { replace: true }); // Clear params
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, refreshUser]);
 
   const loadBillingData = async () => {
     try {
@@ -183,8 +194,9 @@ export default function Billing() {
             Manage your subscription, view usage statistics, and billing history.
           </p>
         </div>
-        
-        {(!subscription || subscription.status !== 'active') && user?.plan !== 'ENTERPRISE' && (
+
+        {/* CRITICAL FIX: Check plan from backend API (subscription.plan), not JWT token (user.plan) */}
+        {(!subscription || subscription.status !== 'active') && subscription?.plan?.toUpperCase() !== 'ENTERPRISE' && (
           <Button onClick={() => setShowPaymentModal(true)}>
             <Zap className="h-4 w-4 mr-2" />
             Upgrade Plan
