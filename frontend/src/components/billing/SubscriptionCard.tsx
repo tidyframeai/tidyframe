@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   Clock,
   Crown,
-  Zap
+  Zap,
+  Activity
 } from 'lucide-react';
 import { SubscriptionStatus, UsageStats, BillingConfig } from '@/types/billing';
 import { billingService } from '@/services/billingService';
@@ -122,7 +123,63 @@ export function SubscriptionCard({
 
   // CRITICAL FIX: Determine plan from backend API response (subscription.plan), not JWT token (user.plan)
   // Backend subscription endpoint always returns plan from database, which is the source of truth
-  const effectivePlan = subscription?.plan?.toUpperCase() || user?.plan?.toUpperCase() || 'FREE';
+  const effectivePlan = (subscription?.plan?.toUpperCase() || user?.plan?.toUpperCase() || 'FREE').trim();
+
+  // Debug logging to help diagnose issues
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[SubscriptionCard] Plan determination:', {
+      subscriptionPlan: subscription?.plan,
+      userPlan: user?.plan,
+      effectivePlan,
+      hasSubscriptionId: !!subscription?.id,
+      subscriptionStatus: subscription?.status
+    });
+  }
+
+  // CRITICAL FIX: Show error state if plan is STANDARD but no complete subscription data
+  // This handles cases where Stripe API fails but database shows paid plan
+  if (effectivePlan === 'STANDARD' && (!subscription || !subscription.id)) {
+    return (
+      <Card className="border-warning/20 bg-warning/5">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-warning" />
+            <CardTitle>Subscription Active - Loading Details</CardTitle>
+          </div>
+          <CardDescription>
+            Your subscription is active but billing details are temporarily unavailable.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Current Plan</span>
+            <Badge className="bg-success/10 text-success border-success/20">
+              <CheckCircle2 className="h-3 w-3 mr-1" />
+              {effectivePlan}
+            </Badge>
+          </div>
+          <div className="p-4 rounded-lg bg-info/10 border border-info/20">
+            <p className="text-sm text-info">
+              Your account shows an active {effectivePlan} plan. Billing details from Stripe
+              are temporarily unavailable. Please try refreshing the page or contact support if this persists.
+            </p>
+          </div>
+          {usage && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Usage this month</span>
+              <span className="font-medium">{usage.current_month.parses.toLocaleString()} / 100,000</span>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter>
+          <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
+            <Activity className="h-4 w-4 mr-2" />
+            Refresh Page
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
 
   // Show admin status for enterprise users
   if (effectivePlan === 'ENTERPRISE' && !subscription?.id) {

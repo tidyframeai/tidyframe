@@ -18,7 +18,8 @@ import {
   Zap,
   ArrowUp,
   ArrowDown,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
 import { SubscriptionCard } from '@/components/billing/SubscriptionCard';
 import { PaymentModal } from '@/components/billing/PaymentModal';
@@ -39,15 +40,24 @@ export default function Billing() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   useEffect(() => {
-    // CRITICAL FIX: Refresh user data from API to get latest plan status from database
-    // This ensures we don't rely on stale JWT token data after payment/plan changes
+    let mounted = true;
+
+    // CRITICAL FIX: Properly await user refresh BEFORE rendering to prevent race condition
+    // Previous bug: initializeBilling() was not awaited, causing SubscriptionCard to render
+    // with stale JWT token data before refreshUser() completed
     const initializeBilling = async () => {
       try {
+        // STEP 1: Refresh user data from API to get latest plan status from database
         await refreshUser();
+
+        if (!mounted) return; // Component unmounted during refresh
+
+        // STEP 2: Now load billing data (subscription, usage, history)
+        await loadBillingData();
       } catch (error) {
-        logger.error('Failed to refresh user data on billing page load:', error);
+        logger.error('Failed to initialize billing:', error);
+        toast.error('Failed to load billing information. Please refresh the page.');
       }
-      loadBillingData();
     };
 
     initializeBilling();
@@ -63,6 +73,10 @@ export default function Billing() {
       toast.error('Payment was cancelled.');
       setSearchParams({}, { replace: true }); // Clear params
     }
+
+    return () => {
+      mounted = false; // Cleanup: prevent state updates after unmount
+    };
   }, [searchParams, setSearchParams, refreshUser]);
 
   const loadBillingData = async () => {
@@ -76,20 +90,41 @@ export default function Billing() {
         billingService.getBillingConfig()
       ]);
 
+      // CRITICAL FIX: Handle subscription fetch failures properly
       if (subscriptionData.status === 'fulfilled') {
         setSubscription(subscriptionData.value);
+      } else if (subscriptionData.status === 'rejected') {
+        // Subscription fetch failed - log error and use fallback
+        logger.error('Subscription fetch failed:', subscriptionData.reason);
+        toast.error('Could not load subscription details from Stripe. Showing limited information.');
+
+        // Set subscription with plan from user (fallback to database data)
+        if (user?.plan) {
+          setSubscription({
+            plan: user.plan,
+            status: 'error' as any, // Indicate data is from fallback
+          });
+        }
       }
 
       if (usageData.status === 'fulfilled') {
         setUsage(usageData.value);
+      } else if (usageData.status === 'rejected') {
+        logger.error('Usage fetch failed:', usageData.reason);
       }
 
       if (historyData.status === 'fulfilled') {
         setBillingHistory(historyData.value);
+      } else if (historyData.status === 'rejected') {
+        logger.error('Billing history fetch failed:', historyData.reason);
+        // Still set empty array to prevent UI errors
+        setBillingHistory([]);
       }
 
       if (configData.status === 'fulfilled') {
         setBillingConfig(configData.value);
+      } else if (configData.status === 'rejected') {
+        logger.error('Billing config fetch failed:', configData.reason);
       }
     } catch (error) {
       logger.error('Error loading billing data:', error);
@@ -195,13 +230,34 @@ export default function Billing() {
           </p>
         </div>
 
-        {/* CRITICAL FIX: Check plan from backend API (subscription.plan), not JWT token (user.plan) */}
-        {(!subscription || subscription.status !== 'active') && subscription?.plan?.toUpperCase() !== 'ENTERPRISE' && (
-          <Button onClick={() => setShowPaymentModal(true)}>
-            <Zap className="h-4 w-4 mr-2" />
-            Upgrade Plan
+        <div className="flex gap-2">
+          {/* Manual refresh button for troubleshooting */}
+          <Button
+            variant="outline"
+            onClick={async () => {
+              toast.info('Refreshing billing data...');
+              try {
+                await refreshUser();
+                await loadBillingData();
+                toast.success('Billing data refreshed successfully');
+              } catch (error) {
+                toast.error('Failed to refresh billing data');
+              }
+            }}
+            disabled={isLoading}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
           </Button>
-        )}
+
+          {/* CRITICAL FIX: Check plan from backend API (subscription.plan), not JWT token (user.plan) */}
+          {(!subscription || subscription.status !== 'active') && subscription?.plan?.toUpperCase() !== 'ENTERPRISE' && (
+            <Button onClick={() => setShowPaymentModal(true)}>
+              <Zap className="h-4 w-4 mr-2" />
+              Upgrade Plan
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
