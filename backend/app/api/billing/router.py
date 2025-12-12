@@ -344,8 +344,15 @@ async def get_subscription(current_user: User = Depends(require_auth)):
             error=str(e),
         )
 
-        # Return basic info if Stripe call fails
-        return SubscriptionResponse(plan=current_user.plan.value, status="unknown")
+        # CRITICAL FIX: Always return `id` from database so frontend doesn't show error state
+        # Even if Stripe API fails, we know the subscription exists in our DB
+        return SubscriptionResponse(
+            id=current_user.stripe_subscription_id,  # Use DB value as fallback
+            plan=current_user.plan.value,
+            status="error",  # More specific than "unknown" - indicates Stripe API issue
+            current_usage=current_user.parses_this_month,  # Use local usage data
+            usage_limit=current_user.monthly_limit,
+        )
 
 
 @router.post("/cancel")
@@ -436,12 +443,17 @@ async def get_usage_stats(
             subscription = await stripe_service.get_subscription(
                 current_user.stripe_subscription_id
             )
-            period_start = datetime.fromtimestamp(
-                subscription["current_period_start"], tz=timezone.utc
-            )
-            period_end = datetime.fromtimestamp(
-                subscription["current_period_end"], tz=timezone.utc
-            )
+            # Safe access for period fields - may be None with some API versions
+            period_start_ts = subscription.get("current_period_start")
+            period_end_ts = subscription.get("current_period_end")
+
+            if period_start_ts and period_end_ts:
+                period_start = datetime.fromtimestamp(period_start_ts, tz=timezone.utc)
+                period_end = datetime.fromtimestamp(period_end_ts, tz=timezone.utc)
+            else:
+                # Fallback if Stripe doesn't return period fields
+                period_start = current_user.month_reset_date
+                period_end = period_start + timedelta(days=30)
         except Exception:
             period_start = current_user.month_reset_date
             period_end = period_start + timedelta(days=30)
@@ -561,16 +573,24 @@ async def get_billing_history(
             overage_amount = 0
             other_amount = 0
 
-            for line in invoice.lines.data:
-                description = line.description or ""
-                amount = line.amount
+            # Safe access for lines - API version compatibility
+            lines = getattr(invoice, 'lines', None)
+            lines_data = getattr(lines, 'data', []) if lines else []
+
+            for line in lines_data:
+                description = getattr(line, 'description', "") or ""
+                amount = getattr(line, 'amount', 0)
+
+                # Safe access for price object - API version compatibility
+                price = getattr(line, 'price', None)
+                price_id = getattr(price, 'id', None) if price else None
 
                 # Identify line item type
                 if "overage" in description.lower() or (
-                    line.price and line.price.id == settings.STRIPE_OVERAGE_PRICE_ID
+                    price_id and price_id == settings.STRIPE_OVERAGE_PRICE_ID
                 ):
                     overage_amount += amount
-                elif line.price and line.price.id in [
+                elif price_id and price_id in [
                     settings.STRIPE_STANDARD_MONTHLY_PRICE_ID,
                     settings.STRIPE_STANDARD_YEARLY_PRICE_ID,
                     settings.STRIPE_ENTERPRISE_MONTHLY_PRICE_ID,
@@ -580,23 +600,27 @@ async def get_billing_history(
                 else:
                     other_amount += amount
 
+            # Safe access for invoice fields - API version compatibility
+            status_transitions = getattr(invoice, 'status_transitions', None)
+            paid_at_timestamp = getattr(status_transitions, 'paid_at', None) if status_transitions else None
+
             history.append(
                 BillingHistoryItem(
                     id=invoice.id,
-                    amount=invoice.amount_paid,
-                    currency=invoice.currency,
-                    status=invoice.status,
-                    description=f"Invoice {invoice.number or invoice.id}",
-                    invoice_url=invoice.hosted_invoice_url,
-                    invoice_pdf=invoice.invoice_pdf,
+                    amount=getattr(invoice, 'amount_paid', 0),
+                    currency=getattr(invoice, 'currency', 'usd'),
+                    status=getattr(invoice, 'status', 'unknown'),
+                    description=f"Invoice {getattr(invoice, 'number', None) or invoice.id}",
+                    invoice_url=getattr(invoice, 'hosted_invoice_url', None),
+                    invoice_pdf=getattr(invoice, 'invoice_pdf', None),
                     created_at=datetime.fromtimestamp(
-                        invoice.created, tz=timezone.utc
+                        getattr(invoice, 'created', 0), tz=timezone.utc
                     ).isoformat(),
                     paid_at=(
                         datetime.fromtimestamp(
-                            invoice.status_transitions.paid_at, tz=timezone.utc
+                            paid_at_timestamp, tz=timezone.utc
                         ).isoformat()
-                        if invoice.status_transitions.paid_at
+                        if paid_at_timestamp
                         else None
                     ),
                     line_items={

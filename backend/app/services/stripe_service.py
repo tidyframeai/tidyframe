@@ -240,8 +240,13 @@ class StripeService:
                 return {"usage": 0, "limit": 0, "overage": 0}
 
             subscription = subscriptions.data[0]
-            period_start = subscription["current_period_start"]
-            period_end = subscription["current_period_end"]
+            # Use safe access for API version compatibility
+            period_start = getattr(subscription, 'current_period_start', None)
+            period_end = getattr(subscription, 'current_period_end', None)
+
+            if not period_start or not period_end:
+                logger.warning(f"Subscription {subscription.id} missing period fields, using fallback")
+                return await self._get_usage_from_local_db(customer_id)
 
             # Get meter ID for reading summaries
             # CRITICAL: This must be the meter ID (mtr_xxx), NOT the event name
@@ -396,17 +401,19 @@ class StripeService:
             raise
 
     async def get_subscription(self, subscription_id: str) -> Dict[str, Any]:
-        """Get subscription details"""
+        """Get subscription details with safe attribute access for API version compatibility"""
         try:
             subscription = self.stripe.Subscription.retrieve(subscription_id)
 
+            # Use safe access for fields that may vary across API versions
+            # The 2025-06-30.basil API version changed the subscription response structure
             return {
                 "id": subscription.id,
-                "status": subscription.status,
-                "current_period_start": subscription.current_period_start,
-                "current_period_end": subscription.current_period_end,
-                "cancel_at_period_end": subscription.cancel_at_period_end,
-                "items": subscription['items']['data'],
+                "status": getattr(subscription, 'status', 'unknown'),
+                "current_period_start": getattr(subscription, 'current_period_start', None),
+                "current_period_end": getattr(subscription, 'current_period_end', None),
+                "cancel_at_period_end": getattr(subscription, 'cancel_at_period_end', False),
+                "items": getattr(subscription, 'items', {}).get('data', []) if hasattr(subscription, 'items') else [],
             }
 
         except stripe.error.StripeError as e:
