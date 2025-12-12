@@ -39,20 +39,18 @@ export default function Billing() {
   const [isLoading, setIsLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
+  // Effect for initial billing data load - runs once on mount
   useEffect(() => {
     let mounted = true;
 
-    // CRITICAL FIX: Properly await user refresh BEFORE rendering to prevent race condition
-    // Previous bug: initializeBilling() was not awaited, causing SubscriptionCard to render
-    // with stale JWT token data before refreshUser() completed
     const initializeBilling = async () => {
       try {
-        // STEP 1: Refresh user data from API to get latest plan status from database
+        // Refresh user data from API to get latest plan status from database
         await refreshUser();
 
         if (!mounted) return; // Component unmounted during refresh
 
-        // STEP 2: Now load billing data (subscription, usage, history)
+        // Now load billing data (subscription, usage, history)
         await loadBillingData();
       } catch (error) {
         logger.error('Failed to initialize billing:', error);
@@ -62,22 +60,28 @@ export default function Billing() {
 
     initializeBilling();
 
-    // Check for success/cancel params from Stripe redirect
+    return () => {
+      mounted = false; // Cleanup: prevent state updates after unmount
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount - refreshUser is stable from AuthContext
+
+  // Separate effect for handling Stripe redirect params
+  useEffect(() => {
     const success = searchParams.get('success');
     const canceled = searchParams.get('canceled');
 
     if (success === 'true') {
       toast.success('Subscription created successfully!');
       setSearchParams({}, { replace: true }); // Clear params
+      // Reload billing data after successful subscription
+      loadBillingData();
     } else if (canceled === 'true') {
       toast.error('Payment was cancelled.');
       setSearchParams({}, { replace: true }); // Clear params
     }
-
-    return () => {
-      mounted = false; // Cleanup: prevent state updates after unmount
-    };
-  }, [searchParams, setSearchParams, refreshUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]); // Only re-run when URL params change
 
   const loadBillingData = async () => {
     try {

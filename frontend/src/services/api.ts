@@ -39,6 +39,26 @@ class ApiService {
       async (error) => {
         const originalRequest = error.config;
 
+        // Handle 429 errors (rate limiting) with retry
+        if (error.response?.status === 429 && !originalRequest._retry429) {
+          originalRequest._retry429 = true;
+          const retryCount = originalRequest._retryCount || 0;
+
+          // Max 2 retries for rate limiting
+          if (retryCount < 2) {
+            originalRequest._retryCount = retryCount + 1;
+            // Get retry-after header or use exponential backoff (1s, 2s)
+            const retryAfter = error.response.headers['retry-after'];
+            const delay = retryAfter ? parseInt(retryAfter, 10) * 1000 : (retryCount + 1) * 1000;
+
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return this.api(originalRequest);
+          }
+          // After max retries, show toast and reject
+          toast.error('Too many requests. Please wait a moment and try again.');
+          return Promise.reject(error);
+        }
+
         // Handle 401 errors (unauthorized)
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
@@ -110,7 +130,7 @@ class ApiService {
               toast.error('Resource not found');
               break;
             case 429:
-              toast.error('Too many requests. Please try again later.');
+              // Handled by retry logic above, this only triggers after max retries
               break;
             case 500:
               toast.error('Server error. Please try again later.');

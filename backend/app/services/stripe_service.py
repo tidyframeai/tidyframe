@@ -405,15 +405,18 @@ class StripeService:
         try:
             subscription = self.stripe.Subscription.retrieve(subscription_id)
 
-            # Use safe access for fields that may vary across API versions
-            # The 2025-06-30.basil API version changed the subscription response structure
+            # Safe access for Stripe ListObject (items has .data attribute, NOT .get('data'))
+            # subscription.items is a Stripe ListObject, not a dict
+            items_obj = getattr(subscription, 'items', None)
+            items_data = list(items_obj.data) if items_obj and hasattr(items_obj, 'data') else []
+
             return {
                 "id": subscription.id,
                 "status": getattr(subscription, 'status', 'unknown'),
                 "current_period_start": getattr(subscription, 'current_period_start', None),
                 "current_period_end": getattr(subscription, 'current_period_end', None),
                 "cancel_at_period_end": getattr(subscription, 'cancel_at_period_end', False),
-                "items": getattr(subscription, 'items', {}).get('data', []) if hasattr(subscription, 'items') else [],
+                "items": items_data,
             }
 
         except stripe.error.StripeError as e:
