@@ -150,7 +150,7 @@ class BillingMiddleware(BaseHTTPMiddleware):
                 # Add temporary billing info
                 request.state.billing_info = {
                     "usage": 0,
-                    "limit": 100000,  # Standard plan limit
+                    "limit": settings.STANDARD_TIER_MONTHLY_LIMIT,  # Standard plan limit from config
                     "overage": 0,
                     "is_admin": False,
                     "grace_period": True,

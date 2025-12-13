@@ -30,7 +30,7 @@ class SubscriptionTier(Enum):
 
     @property
     def monthly_limit(self):
-        limits = {self.FREE: 1000, self.STANDARD: 100000, self.ENTERPRISE: float("inf")}
+        limits = {self.FREE: 1000, self.STANDARD: settings.STANDARD_TIER_MONTHLY_LIMIT, self.ENTERPRISE: float("inf")}
         return limits.get(self, 0)
 
 
