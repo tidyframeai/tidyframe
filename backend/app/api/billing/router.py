@@ -297,12 +297,19 @@ async def get_subscription(current_user: User = Depends(require_auth)):
                     "usage_fetch_failed", user_id=current_user.id, error=str(e)
                 )
 
-        # Calculate days until renewal
-        period_end = subscription["current_period_end"]
-        days_until_renewal = (
-            datetime.fromtimestamp(period_end, tz=timezone.utc)
-            - datetime.now(timezone.utc)
-        ).days
+        # Calculate days until renewal - handle None period_end gracefully
+        period_end = subscription.get("current_period_end")
+        if period_end:
+            days_until_renewal = (
+                datetime.fromtimestamp(period_end, tz=timezone.utc)
+                - datetime.now(timezone.utc)
+            ).days
+        else:
+            # Fallback to user's month_reset_date from database
+            if current_user.month_reset_date:
+                days_until_renewal = (current_user.month_reset_date - datetime.now(timezone.utc)).days
+            else:
+                days_until_renewal = 30  # Default fallback
 
         # Get subscription base amount
         base_amount = 0
@@ -311,22 +318,38 @@ async def get_subscription(current_user: User = Depends(require_auth)):
             base_amount = price.get("unit_amount", 0)
 
         # Calculate usage percentage and estimated invoice
-        current_usage = usage_data.get("usage", 0)
+        # Prefer local database count when Stripe returns 0 (fallback indicator)
+        stripe_usage = usage_data.get("usage", 0)
+        current_usage = stripe_usage if stripe_usage > 0 else current_user.parses_this_month
         limit = usage_data.get("limit", current_user.monthly_limit)
-        overage = usage_data.get("overage", 0)
+        # Recalculate overage based on actual current_usage (not Stripe fallback data)
+        overage = max(0, current_usage - limit)
         overage_cost = int(
             overage * settings.OVERAGE_PRICE_PER_UNIT * 100
         )  # Convert to cents
         usage_percentage = (current_usage / limit * 100) if limit > 0 else 0
         estimated_invoice = base_amount + overage_cost
 
+        # Use fallback values for period dates if Stripe returns None
+        period_start = subscription.get("current_period_start")
+        response_period_start = period_start
+        response_period_end = period_end
+
+        # Calculate fallback period from month_reset_date if Stripe data missing
+        if not response_period_start or not response_period_end:
+            if current_user.month_reset_date:
+                fallback_end = int(current_user.month_reset_date.timestamp())
+                fallback_start = int((current_user.month_reset_date - timedelta(days=30)).timestamp())
+                response_period_start = response_period_start or fallback_start
+                response_period_end = response_period_end or fallback_end
+
         return SubscriptionResponse(
             id=subscription["id"],
             status=subscription["status"],
             plan=current_user.plan.value,
-            current_period_start=subscription["current_period_start"],
-            current_period_end=subscription["current_period_end"],
-            cancel_at_period_end=subscription["cancel_at_period_end"],
+            current_period_start=response_period_start,
+            current_period_end=response_period_end,
+            cancel_at_period_end=subscription.get("cancel_at_period_end", False),
             current_usage=current_usage,
             usage_limit=limit,
             usage_percentage=round(usage_percentage, 2),

@@ -302,11 +302,11 @@ class StripeService:
     async def _get_usage_from_local_db(self, customer_id: str) -> Dict[str, Any]:
         """Fallback: Get usage from local database when Stripe API fails"""
         try:
-            from app.core.database import async_session_maker
+            from app.core.database import AsyncSessionLocal
             from app.models.user import User
             from sqlalchemy import select
 
-            async with async_session_maker() as db:
+            async with AsyncSessionLocal() as db:
                 stmt = select(User).where(User.stripe_customer_id == customer_id)
                 result = await db.execute(stmt)
                 user = result.scalar_one_or_none()
