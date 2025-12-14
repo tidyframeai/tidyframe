@@ -109,15 +109,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     initAuth();
   }, []);
 
-  // Re-check subscription when user changes
-  useEffect(() => {
-    if (user) {
-      checkSubscriptionStatus();
-    } else {
-      setHasActiveSubscription(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  // NOTE: Removed auto-trigger of checkSubscriptionStatus() on user change
+  // This was causing a refresh loop because:
+  // 1. checkSubscriptionStatus() can call setUser() when detecting plan mismatch (line 51)
+  // 2. setUser() triggers this useEffect again
+  // 3. Loop continues indefinitely, causing "Too many requests" errors
+  //
+  // This is now handled properly by:
+  // - initAuth() sets hasActiveSubscription before setUser (lines 89-92)
+  // - login() sets hasActiveSubscription before setUser (lines 127-130)
+  // - refreshUser() sets hasActiveSubscription before setUser (lines 213-215)
+  // - logout() sets hasActiveSubscription to false (line 189)
 
   const login = async (email: string, password: string): Promise<boolean> => {
     const response = await authService.login(email, password);

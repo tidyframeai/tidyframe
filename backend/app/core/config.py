@@ -130,7 +130,7 @@ class Settings(BaseSettings):
     VIRUS_SCANNING_ENABLED: bool = True
 
     # Processing Limits
-    STANDARD_TIER_MONTHLY_LIMIT: int = 5  # TESTING: Temporary low limit for overage testing (normally 100000)
+    STANDARD_TIER_MONTHLY_LIMIT: int = 100000  # 100k names included in $80/month
     ENTERPRISE_TIER_MONTHLY_LIMIT: int = 10000000  # 10M for enterprise
     ANONYMOUS_LIFETIME_LIMIT: int = (
         5  # Free anonymous trial (5 parses total per IP, lifetime)
@@ -172,7 +172,7 @@ class Settings(BaseSettings):
     # Billing configuration
     STANDARD_MONTHLY_PRICE: float = 80.0
     STANDARD_YEARLY_PRICE: float = 768.0  # 20% discount (save $192/year)
-    MONTHLY_NAME_LIMIT: int = 5  # TESTING: Temporary low limit for overage testing (normally 100000)
+    MONTHLY_NAME_LIMIT: int = 100000  # Standard tier monthly limit
     OVERAGE_PRICE_PER_UNIT: float = 0.01  # $0.01 per parse over limit
     RESEND_API_KEY: str = ""
 
